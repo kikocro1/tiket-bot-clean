@@ -10,7 +10,13 @@ const {
   ButtonStyle,
 } = require('discord.js');
 
-const { token } = require('./config.json');
+require('dotenv').config();
+
+const token = process.env.TOKEN;
+const clientId = process.env.CLIENT_ID;
+const guildId = process.env.GUILD_ID;
+const supportRoleId = process.env.SUPPORT_ROLE_ID;
+
 
 // ❗ OVDJE UPIŠI SVOJE ID-OVE:
 const TICKET_CATEGORY_ID = '1437220354992115912';   // npr. '123456789012345678'
