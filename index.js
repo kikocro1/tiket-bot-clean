@@ -1,3 +1,11 @@
+// 🔹 prvo učitaj .env
+require('dotenv').config();
+
+// 🔹 moduli
+const path = require('path');
+const express = require('express');
+const session = require('express-session');
+
 const {
   Client,
   GatewayIntentBits,
@@ -10,30 +18,55 @@ const {
   ButtonStyle,
 } = require('discord.js');
 
-require('dotenv').config();
-
-const token = process.env.TOKEN;
+// 🔹 ENV varijable
+const token  = process.env.TOKEN;
 const clientId = process.env.CLIENT_ID;
-const guildId = process.env.GUILD_ID;
-const supportRoleId = process.env.SUPPORT_ROLE_ID;
+const guildId  = process.env.GUILD_ID;
+const SUPPORT_ROLE_ID = process.env.SUPPORT_ROLE_ID; // koristimo ga dolje u ticketima
 
-const express = require('express');
-const app = express();
+// =====================
+//  EXPRESS + DASHBOARD
+// =====================
+
+const app  = express();
 const PORT = process.env.PORT || 3000;
 
-// HTTP endpoint - Railway ga koristi da provjeri da li je app živ
+// ako želiš kasnije EJS, dodaš ovo i instaliraš ejs
+// app.set('view engine', 'ejs');
+// app.set('views', path.join(__dirname, 'views'));
+
+app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.urlencoded({ extended: true }));
+
+app.use(
+  session({
+    secret: process.env.DASHBOARD_SECRET || 'change-me',
+    resave: false,
+    saveUninitialized: false,
+  })
+);
+
+// basic health-check / home
 app.get('/', (req, res) => {
-    res.send('Bot dashboard is running!');
+  res.send('Dashboard is running!');
+});
+
+// jednostavna dashboard ruta (za sad samo tekst)
+app.get('/dashboard', (req, res) => {
+  res.send('Dashboard page');
 });
 
 app.listen(PORT, () => {
-    console.log(`Dashboard listening on port ${PORT}`);
+  console.log(`🌐 Dashboard listening on port ${PORT}`);
 });
 
+// =====================
+//  DISCORD BOT DIO
+// =====================
 
 // ❗ OVDJE UPIŠI SVOJE ID-OVE:
-const TICKET_CATEGORY_ID = '1437220354992115912';   // npr. '123456789012345678'
-const SUPPORT_ROLE_ID    = '863814372610146314'; // npr. '987654321098765432'
+const TICKET_CATEGORY_ID = '1437220354992115912';   // kategorija gdje idu tiketi
+// SUPPORT_ROLE_ID uzimamo iz .env (gore) – isti onaj koji si stavio na Railway / .env
 // (Developer Mode ON → desni klik na kategoriju/rolu → Copy ID)
 
 console.log('▶ Pokrećem bota...');
@@ -50,8 +83,8 @@ client.on('error', (err) => {
   console.error('❌ Client error:', err);
 });
 
+// ============== SLASH KOMANDA /ticket-panel ==============
 client.on('interactionCreate', async interaction => {
-  // ============== SLASH KOMANDA /ticket-panel ==============
   if (interaction.isChatInputCommand()) {
     if (interaction.commandName === 'ticket-panel') {
       const embed = new EmbedBuilder()
@@ -103,9 +136,8 @@ client.on('interactionCreate', async interaction => {
 
       const row = new ActionRowBuilder().addComponents(menu);
 
-      // 🔻 ovo uklanja sivu poruku "korisnik upotrebio /ticket-panel"
-      await interaction.deferReply({ ephemeral: true }); // privremeni "nevidljivi" odgovor
-      await interaction.deleteReply();                   // obriše taj odgovor
+      await interaction.deferReply({ ephemeral: true });
+      await interaction.deleteReply();
 
       const channel = interaction.channel;
       await channel.send({ embeds: [embed], components: [row] });
@@ -114,8 +146,8 @@ client.on('interactionCreate', async interaction => {
 
   // ============== KREIRANJE TIKETA (dropdown) ==============
   if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_category') {
-    const type = interaction.values[0]; // igranje / zalba / modovi
-    const guild = interaction.guild;
+    const type   = interaction.values[0]; // igranje / zalba / modovi
+    const guild  = interaction.guild;
     const member = interaction.member;
 
     const channelName = `ticket-${type}-${member.user.username}`.toLowerCase();
@@ -123,14 +155,14 @@ client.on('interactionCreate', async interaction => {
     const channel = await guild.channels.create({
       name: channelName,
       type: ChannelType.GuildText,
-      parent: TICKET_CATEGORY_ID, // 🔹 svi tiketi idu u ovu kategoriju
+      parent: TICKET_CATEGORY_ID,
       permissionOverwrites: [
         {
-          id: guild.roles.everyone, // svi ostali ne vide
+          id: guild.roles.everyone,
           deny: [PermissionFlagsBits.ViewChannel],
         },
         {
-          id: SUPPORT_ROLE_ID, // Support tim vidi sve tikete
+          id: SUPPORT_ROLE_ID, // iz .env
           allow: [
             PermissionFlagsBits.ViewChannel,
             PermissionFlagsBits.SendMessages,
@@ -138,7 +170,7 @@ client.on('interactionCreate', async interaction => {
           ],
         },
         {
-          id: member.id, // korisnik koji je otvorio tiket
+          id: member.id,
           allow: [
             PermissionFlagsBits.ViewChannel,
             PermissionFlagsBits.SendMessages,
@@ -148,15 +180,14 @@ client.on('interactionCreate', async interaction => {
       ],
     });
 
-    // prilagođena poruka ovisno o tipu
     let ticketMessage = '';
 
     switch (type) {
-      case 'igranje': 
+      case 'igranje':
         ticketMessage =
           `🎮 Zdravo ${member}, hvala što si otvorio **Igranje na serveru** ticket.\n\n` +
           '# 🧾 Evo da skratimo stvari i ubrzamo proces\n\n' +
-          '**Imaš par pitanja pa čisto da **vlasnik** ne gubi vrijeme kad preuzme ovaj tiket.**\n\n' +
+          '**Imaš par pitanja pa čisto da vlasnik ne gubi vrijeme kad preuzme ovaj tiket.**\n\n' +
           '- Koliko često planiraš da igraš na serveru? (npr. svakodnevno, par puta nedeljno...)\n' +
           '- U koje vrijeme si najčešće aktivan? (npr. popodne, uveče, vikendom...)\n' +
           '- Da li si spreman da poštuješ raspored i obaveze na farmi (npr. oranje, žetva, hranjenje stoke)?\n' +
@@ -191,7 +222,6 @@ client.on('interactionCreate', async interaction => {
         break;
     }
 
-    // dugmad: PREUZMI i ZATVORI
     const buttons = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId('ticket_claim')
@@ -225,7 +255,6 @@ client.on('interactionCreate', async interaction => {
       });
     }
 
-    // PREUZMI TIKET
     if (interaction.customId === 'ticket_claim') {
       await interaction.reply({
         content: `✅ Ticket je preuzeo/la ${interaction.user}.`,
@@ -233,7 +262,6 @@ client.on('interactionCreate', async interaction => {
       return;
     }
 
-    // ZATVORI TIKET (samo preimenuje u closed-...)
     if (interaction.customId === 'ticket_close') {
       await interaction.reply({
         content: '🔒 Ticket je zatvoren. Kanal je označen kao zatvoren.',
@@ -243,10 +271,6 @@ client.on('interactionCreate', async interaction => {
       if (!interaction.channel.name.startsWith('closed-')) {
         await interaction.channel.setName(`closed-${interaction.channel.name}`);
       }
-
-      // ovdje po želji možeš premjestiti kanal u arhiva kategoriju:
-      // const ARCHIVE_CATEGORY_ID = 'OVDJE_ID_ARHIVA_KATEGORIJE';
-      // await interaction.channel.setParent(ARCHIVE_CATEGORY_ID);
 
       return;
     }
