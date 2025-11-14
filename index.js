@@ -32,8 +32,8 @@ const app  = express();
 const PORT = process.env.PORT || 3000;
 
 // ako želiš kasnije EJS, dodaš ovo i instaliraš ejs
-// app.set('view engine', 'ejs');
-// app.set('views', path.join(__dirname, 'views'));
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'));
 
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.urlencoded({ extended: true }));
@@ -46,15 +46,57 @@ app.use(
   })
 );
 
-// basic health-check / home
+// 🧮 helper za lijepi uptime
+function formatUptime(ms) {
+  if (!ms) return 'N/A';
+  const totalSeconds = Math.floor(ms / 1000);
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+
+  const parts = [];
+  if (days) parts.push(`${days}d`);
+  if (hours) parts.push(`${hours}h`);
+  if (minutes) parts.push(`${minutes}m`);
+  if (!parts.length) parts.push('manje od 1 minute');
+  return parts.join(' ');
+}
+
+// root samo preusmjerava na /dashboard
 app.get('/', (req, res) => {
-  res.send('Dashboard is running!');
+  res.redirect('/dashboard');
 });
 
-// jednostavna dashboard ruta (za sad samo tekst)
-app.get('/dashboard', (req, res) => {
-  res.send('Dashboard page');
+// glavni dashboard
+app.get('/dashboard', async (req, res) => {
+  const guild = client.guilds.cache.get(guildId);
+
+  const botData = {
+    tag: client.user ? client.user.tag : 'Bot offline',
+    id: client.user ? client.user.id : 'N/A',
+    avatar: client.user ? client.user.displayAvatarURL() : null,
+    uptime: formatUptime(client.uptime),
+    readyAt: client.readyAt || null,
+  };
+
+  const guildData = guild
+    ? {
+        name: guild.name,
+        memberCount: guild.memberCount,
+        id: guild.id,
+      }
+    : {
+        name: 'Guild nije učitan',
+        memberCount: 'N/A',
+        id: guildId,
+      };
+
+  res.render('dashboard', {
+    bot: botData,
+    guild: guildData,
+  });
 });
+
 
 app.listen(PORT, () => {
   console.log(`🌐 Dashboard listening on port ${PORT}`);

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="hr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Slavonska Ravnica – Bot Dashboard</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="page">
+    <header class="header">
+      <h1>Slavonska Ravnica – Bot Dashboard</h1>
+      <p class="subtitle">Status bota i servera</p>
+    </header>
+
+    <main class="grid">
+      <!-- BOT INFO -->
+      <section class="card">
+        <h2>🤖 Bot</h2>
+
+        <div class="bot-info">
+          <% if (bot.avatar) { %>
+            <img src="<%= bot.avatar %>" alt="Avatar" class="avatar" />
+          <% } %>
+          <div>
+            <p><strong>Tag:</strong> <%= bot.tag %></p>
+            <p><strong>ID:</strong> <%= bot.id %></p>
+            <p><strong>Uptime:</strong> <%= bot.uptime %></p>
+            <% if (bot.readyAt) { %>
+              <p><strong>Online od:</strong> <%= bot.readyAt.toLocaleString('hr-HR') %></p>
+            <% } %>
+          </div>
+        </div>
+      </section>
+
+      <!-- SERVER INFO -->
+      <section class="card">
+        <h2>🏠 Discord server</h2>
+        <p><strong>Naziv:</strong> <%= guild.name %></p>
+        <p><strong>ID:</strong> <%= guild.id %></p>
+        <p><strong>Broj članova:</strong> <%= guild.memberCount %></p>
+      </section>
+
+      <!-- TIKET SISTEM -->
+      <section class="card">
+        <h2>🎫 Ticket sistem</h2>
+        <ul class="list">
+          <li>/ticket-panel se koristi za prikaz ticket embed-a u kanalu.</li>
+          <li>Svi tiketi se otvaraju u kategoriji s ID-em:
+            <code><%= process.env.TICKET_CATEGORY_ID || 'TICKET_CATEGORY_ID u kodu' %></code>
+          </li>
+          <li>Support role ID:
+            <code><%= process.env.SUPPORT_ROLE_ID || 'SUPPORT_ROLE_ID u kodu' %></code>
+          </li>
+        </ul>
+        <p class="hint">
+          * Ove vrijednosti se čitaju iz koda / env varijabli – nisu live iz Discorda.
+        </p>
+      </section>
+
+      <!-- LINKOVI -->
+      <section class="card">
+        <h2>🔗 Korisni linkovi</h2>
+        <ul class="list">
+          <li><a href="https://discord.com/developers/applications" target="_blank">Discord Developer Portal</a></li>
+          <li><a href="https://railway.app" target="_blank">Railway Dashboard</a></li>
+          <li><a href="https://github.com/kikocro1" target="_blank">Tvoj GitHub</a></li>
+        </ul>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <p>© <%= new Date().getFullYear() %> Slavonska Ravnica – Dashboard</p>
+    </footer>
+  </div>
+</body>
+</html>
