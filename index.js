@@ -17,6 +17,19 @@ const clientId = process.env.CLIENT_ID;
 const guildId = process.env.GUILD_ID;
 const supportRoleId = process.env.SUPPORT_ROLE_ID;
 
+const express = require('express');
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// HTTP endpoint - Railway ga koristi da provjeri da li je app živ
+app.get('/', (req, res) => {
+    res.send('Bot dashboard is running!');
+});
+
+app.listen(PORT, () => {
+    console.log(`Dashboard listening on port ${PORT}`);
+});
+
 
 // ❗ OVDJE UPIŠI SVOJE ID-OVE:
 const TICKET_CATEGORY_ID = '1437220354992115912';   // npr. '123456789012345678'
