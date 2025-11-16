@@ -1,0 +1,18 @@
+{
+  "welcome": {
+    "channelId": "1238529919764398203",
+    "message": "Dobrodošao {user} na server!"
+  },
+  "logging": {
+    "channelId": "1271570784866799718"
+  },
+  "embeds": [
+    {
+      "channelId": "1307138185930735728",
+      "title": "test ",
+      "description": "đovanđi je budala",
+      "color": "",
+      "sentAt": "2025-11-14T18:10:55.820Z"
+    }
+  ]
+}

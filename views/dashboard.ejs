@@ -2,75 +2,447 @@
 <html lang="hr">
 <head>
   <meta charset="UTF-8" />
-  <title>Slavonska Ravnica – Bot Dashboard</title>
+  <title><%= guild.name %> – Bot Dashboard</title>
   <link rel="stylesheet" href="/style.css" />
 </head>
-<body>
-  <div class="page">
-    <header class="header">
-      <h1>Slavonska Ravnica – Bot Dashboard</h1>
-      <p class="subtitle">Status bota i servera</p>
-    </header>
+<body class="dash-body">
+  <div class="dash-wrapper">
+    <!-- SIDEBAR -->
+    <aside class="dash-sidebar">
+      <div class="sidebar-header">
+        <div class="guild-name"><%= guild.name %></div>
+        <div class="bot-tag"><%= bot.tag %></div>
+      </div>
 
-    <main class="grid">
-      <!-- BOT INFO -->
-      <section class="card">
-        <h2>🤖 Bot</h2>
+      <nav class="sidebar-nav">
+        <a href="/dashboard?tab=overview" class="nav-item <%= activeTab === 'overview' ? 'active' : '' %>">
+          Overview
+        </a>
+        <a href="/dashboard?tab=greetings" class="nav-item <%= activeTab === 'greetings' ? 'active' : '' %>">
+          Greetings
+        </a>
+        <a href="/dashboard?tab=logging" class="nav-item <%= activeTab === 'logging' ? 'active' : '' %>">
+          Logging
+        </a>
+        <a href="/dashboard?tab=embeds" class="nav-item <%= activeTab === 'embeds' ? 'active' : '' %>">
+          Embeds
+        </a>
+      </nav>
+    </aside>
 
-        <div class="bot-info">
-          <% if (bot.avatar) { %>
-            <img src="<%= bot.avatar %>" alt="Avatar" class="avatar" />
-          <% } %>
-          <div>
+    <!-- MAIN CONTENT -->
+    <main class="dash-main">
+      <% if (activeTab === 'overview') { %>
+        <h1>Slavonska Ravnica – Bot Dashboard</h1>
+        <p class="subtitle">Status bota i servera</p>
+
+        <div class="card-grid">
+          <section class="card">
+            <h2>🤖 Bot</h2>
             <p><strong>Tag:</strong> <%= bot.tag %></p>
             <p><strong>ID:</strong> <%= bot.id %></p>
             <p><strong>Uptime:</strong> <%= bot.uptime %></p>
-            <% if (bot.readyAt) { %>
-              <p><strong>Online od:</strong> <%= bot.readyAt.toLocaleString('hr-HR') %></p>
-            <% } %>
+            <p><strong>Online od:</strong> <%= bot.readyAt ? bot.readyAt.toLocaleString() : 'N/A' %></p>
+          </section>
+
+          <section class="card">
+            <h2>🏠 Discord server</h2>
+            <p><strong>Naziv:</strong> <%= guild.name %></p>
+            <p><strong>ID:</strong> <%= guild.id %></p>
+            <p><strong>Broj članova:</strong> <%= guild.memberCount %></p>
+          </section>
+
+          <section class="card">
+            <h2>🎫 Ticket sistem</h2>
+            <p>/ticket-panel se koristi za prikaz ticket embed-a u kanalu.</p>
+            <p>Svi tiketi idu u kategoriju ID: <code>TICKET_CATEGORY_ID</code> (iz koda).</p>
+            <p>Support role ID: <code><%= process.env.SUPPORT_ROLE_ID %></code></p>
+          </section>
+        </div>
+
+        <section class="card">
+          <h2>🔗 Korisni linkovi</h2>
+          <ul>
+            <li><a href="https://discord.com/developers/applications" target="_blank">Discord Developer Portal</a></li>
+            <li><a href="https://railway.app/" target="_blank">Railway Dashboard</a></li>
+            <li><a href="https://github.com" target="_blank">GitHub</a></li>
+          </ul>
+        </section>
+
+      <% } else if (activeTab === 'greetings') { %>
+        <h1>👋 Greetings (welcome poruke)</h1>
+        <p>Postavi kanal i poruku koju bot šalje kad netko uđe na server.</p>
+
+        <form action="/dashboard/greetings" method="post" class="form-card">
+          <label>
+            Welcome kanal ID:
+            <input type="text" name="welcomeChannelId" value="<%= config.welcome.channelId %>" placeholder="npr. 123456789012345678" />
+          </label>
+
+          <label>
+            Poruka:
+            <textarea name="welcomeMessage" rows="5"><%= config.welcome.message %></textarea>
+          </label>
+
+          <p class="help">
+            Dostupni placeholderi:<br />
+            <code>{user}</code> – mention novog člana<br />
+            <code>{username}</code> – samo njegovo korisničko ime
+          </p>
+
+          <button type="submit" class="btn-primary">Spremi postavke</button>
+        </form>
+
+      <% } else if (activeTab === 'logging') { %>
+        <h1>📜 Logging</h1>
+        <p>Odaberi kanal u koji će bot slati log poruke (join/leave, kasnije i ticket logove, bannove itd.).</p>
+
+        <form action="/dashboard/logging" method="post" class="form-card">
+          <label>
+            Log kanal ID:
+            <input type="text" name="logChannelId" value="<%= config.logging.channelId %>" placeholder="npr. 123456789012345678" />
+          </label>
+
+          <button type="submit" class="btn-primary">Spremi log kanal</button>
+        </form>
+
+      <% } else if (activeTab === 'embeds') { %>
+  <h1>Embeds</h1>
+  <p class="subtitle">Pošalji custom embed u određeni kanal.</p>
+
+  <div class="embed-layout">
+    <!-- LEFT: BUILDER -->
+    <section class="embed-builder">
+
+      <header class="embed-builder-header">
+        <h2>Embed builder</h2>
+        <div class="embed-builder-actions">
+          <button type="button" class="btn-secondary">Create Embed</button>
+          <button type="button" class="btn-primary">Edit Embed</button>
+        </div>
+      </header>
+
+      <form action="/dashboard/embeds" method="POST" class="embed-form-card">
+
+        <!-- normal message -->
+        <div class="form-group">
+  <label for="normalMessage">Normal text sent with the embed</label>
+  <textarea id="normalMessage" name="normalMessage" rows="2" class="normal-textarea"
+            placeholder="Tekst koji ide uz embed (nije u embed kutiji)"></textarea>
+</div>
+
+
+        <!-- BOX: embed content -->
+        <div class="embed-box">
+
+          <div class="embed-box-header">
+            <button type="button" id="toggleColorPicker" class="btn-secondary-sm">
+              Toggle color picker
+            </button>
+          </div>
+
+          <!-- top row: author icon / name / title URL itd. (po potrebi koristiš šta ti treba) -->
+          <div class="embed-row">
+            <input type="text" id="authorIcon" name="authorIcon"
+                   placeholder="Icon url">
+            <input type="text" id="authorName" name="authorName"
+                   placeholder="Name">
+            <input type="text" id="authorUrl" name="authorUrl"
+                   placeholder="Name url">
+          </div>
+
+          <div class="embed-row">
+            <input type="text" id="title" name="title"
+                   placeholder="Title">
+            <input type="text" id="titleUrl" name="titleUrl"
+                   placeholder="Title url">
+          </div>
+
+          <!-- opis -->
+          <div class="form-group">
+            <textarea id="description" name="description" rows="6"
+                      placeholder="Description"></textarea>
+          </div>
+
+          <!-- fields btn (za sada samo dekorativno) -->
+          <div class="embed-fields-footer">
+            <span>0/25 fields</span>
+            <button type="button" class="btn-secondary-sm">Add field</button>
+          </div>
+
+          <!-- slike + footer + timestamp -->
+          <div class="embed-row">
+            <input type="text" id="imageUrl" name="imageUrl"
+                   placeholder="Image url (big at the bottom)">
+            <input type="text" id="thumbnailUrl" name="thumbnailUrl"
+                   placeholder="Thumbnail url (small top right)">
+          </div>
+
+          <div class="embed-row">
+            <input type="text" id="footerText" name="footerText"
+                   placeholder="Footer">
+            <input type="text" id="footerIcon" name="footerIcon"
+                   placeholder="Footer icon">
+            <input type="date" id="fakeDate" class="embed-date-input">
+          </div>
+
+          <div class="embed-row embed-color-row" id="colorPickerRow">
+            <!-- vizualni picker -->
+            <input type="color" id="colorPicker" value="#00b0f4">
+            <!-- tekstualni HEX koji ide u backend -->
+            <input type="text" id="color" name="color" value="#00b0f4"
+                   placeholder="#00b0f4">
+            <label class="checkbox-inline">
+              <input type="checkbox" name="timestamp" checked>
+              Add timestamp
+            </label>
           </div>
         </div>
-      </section>
 
-      <!-- SERVER INFO -->
+        <!-- DESTINACIJA -->
+        <div class="embed-destination">
+  <label for="embedChannelId">Destination</label>
+
+  <select id="embedChannelId" name="embedChannelId" required>
+  <option value="">Select a channel</option>
+
+  <%
+    // grupiramo kanale po kategoriji
+    const grouped = {};
+
+    channels.forEach(ch => {
+      const cat = ch.parentName || 'Other channels';
+      if (!grouped[cat]) grouped[cat] = [];
+      grouped[cat].push(ch);
+    });
+
+    // ispis kategorija
+    Object.keys(grouped).forEach(catName => { 
+  %>
+
+      <optgroup label="<%= catName %>">
+        <% grouped[catName].forEach(ch => { %>
+          <option value="<%= ch.id %>"># <%= ch.name %></option>
+        <% }) %>
+      </optgroup>
+
+  <% }) %>
+</select>
+</div>
+
+
+        <div class="embed-actions-bottom">
+          <button type="submit" class="btn-primary">Post</button>
+          <button type="reset" class="btn-danger">Reset</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- RIGHT: PREVIEW -->
+    <section class="embed-preview-panel">
+      <header class="embed-preview-header">
+        <h2>Preview</h2>
+      </header>
+
+      <div class="embed-preview-wrapper">
+        <div id="embedPreview"
+             class="embed-preview-box">
+          <div id="previewAuthor" class="embed-preview-author" style="display:none;">
+            <img id="previewAuthorIcon" src="" alt="">
+            <span id="previewAuthorName"></span>
+          </div>
+
+          <h2 id="previewTitle" class="embed-preview-title">
+            Naslov embed-a
+          </h2>
+
+          <p id="previewDescription" class="embed-preview-description">
+            Ovdje će se prikazati opis embed poruke.
+          </p>
+
+          <img id="previewThumbnail" src="" alt="thumb" class="embed-preview-thumb" style="display:none;">
+          <img id="previewImage" src="" alt="image" class="embed-preview-image" style="display:none;">
+
+          <div id="previewFooter" class="embed-preview-footer" style="display:none;">
+            <img id="previewFooterIcon" src="" alt="">
+            <span id="previewFooterText"></span>
+            <span id="previewTimestamp"></span>
+          </div>
+        </div>
+      </div>
+
       <section class="card">
-        <h2>🏠 Discord server</h2>
-        <p><strong>Naziv:</strong> <%= guild.name %></p>
-        <p><strong>ID:</strong> <%= guild.id %></p>
-        <p><strong>Broj članova:</strong> <%= guild.memberCount %></p>
+        <h2>Povijest embedova</h2>
+        <% if (config.embeds && config.embeds.length) { %>
+          <ul class="embed-history">
+            <% config.embeds.slice().reverse().slice(0,10).forEach(e => { %>
+              <li>
+                <code><%= e.channelId %></code> — <strong><%= e.title || 'Bez naslova' %></strong>
+                <span class="muted">(<%= new Date(e.sentAt).toLocaleString() %>)</span>
+              </li>
+            <% }) %>
+          </ul>
+        <% } else { %>
+          <p class="muted">Još nema poslanih embedova.</p>
+        <% } %>
       </section>
-
-      <!-- TIKET SISTEM -->
-      <section class="card">
-        <h2>🎫 Ticket sistem</h2>
-        <ul class="list">
-          <li>/ticket-panel se koristi za prikaz ticket embed-a u kanalu.</li>
-          <li>Svi tiketi se otvaraju u kategoriji s ID-em:
-            <code><%= process.env.TICKET_CATEGORY_ID || 'TICKET_CATEGORY_ID u kodu' %></code>
-          </li>
-          <li>Support role ID:
-            <code><%= process.env.SUPPORT_ROLE_ID || 'SUPPORT_ROLE_ID u kodu' %></code>
-          </li>
-        </ul>
-        <p class="hint">
-          * Ove vrijednosti se čitaju iz koda / env varijabli – nisu live iz Discorda.
-        </p>
-      </section>
-
-      <!-- LINKOVI -->
-      <section class="card">
-        <h2>🔗 Korisni linkovi</h2>
-        <ul class="list">
-          <li><a href="https://discord.com/developers/applications" target="_blank">Discord Developer Portal</a></li>
-          <li><a href="https://railway.app" target="_blank">Railway Dashboard</a></li>
-          <li><a href="https://github.com/kikocro1" target="_blank">Tvoj GitHub</a></li>
-        </ul>
-      </section>
-    </main>
-
-    <footer class="footer">
-      <p>© <%= new Date().getFullYear() %> Slavonska Ravnica – Dashboard</p>
-    </footer>
+    </section>
   </div>
+<% } %>
+
+    </main>
+  </div>
+
+  <script>
+  // inputi
+  const titleInput       = document.getElementById('title');
+  const descInput        = document.getElementById('description');
+  const colorInput       = document.getElementById('color');
+  const colorPicker      = document.getElementById('colorPicker');
+  const authorNameInput  = document.getElementById('authorName');
+  const authorIconInput  = document.getElementById('authorIcon');
+  const footerTextInput  = document.getElementById('footerText');
+  const footerIconInput  = document.getElementById('footerIcon');
+  const thumbInput       = document.getElementById('thumbnailUrl');
+  const imageInput       = document.getElementById('imageUrl');
+  const timestampInput   = document.querySelector("input[name='timestamp']");
+
+  // elementi previewa
+  const embedPreview     = document.getElementById('embedPreview');
+  const previewTitle     = document.getElementById('previewTitle');
+  const previewDescription = document.getElementById('previewDescription');
+
+  const previewAuthor    = document.getElementById('previewAuthor');
+  const previewAuthorName= document.getElementById('previewAuthorName');
+  const previewAuthorIcon= document.getElementById('previewAuthorIcon');
+
+  const previewFooter    = document.getElementById('previewFooter');
+  const previewFooterText= document.getElementById('previewFooterText');
+  const previewFooterIcon= document.getElementById('previewFooterIcon');
+  const previewTimestamp = document.getElementById('previewTimestamp');
+
+  const previewThumbnail = document.getElementById('previewThumbnail');
+  const previewImage     = document.getElementById('previewImage');
+
+  function safeHex(val, fallback) {
+    if (!val) return fallback;
+    let v = val.trim();
+    if (!v.startsWith('#')) v = '#' + v;
+    if (/^#[0-9a-fA-F]{3,6}$/.test(v)) return v;
+    return fallback;
+  }
+
+  function updateEmbedPreview() {
+    // naslov + opis
+    previewTitle.textContent =
+      titleInput.value || 'Naslov embed-a';
+    previewDescription.textContent =
+      descInput.value || 'Ovdje će se prikazati opis embed poruke.';
+
+    // boja
+    embedPreview.style.borderLeftColor =
+      safeHex(colorInput.value || '#00b0f4', '#00b0f4');
+
+    // author
+    const aName = authorNameInput.value.trim();
+    const aIcon = authorIconInput.value.trim();
+    if (aName || aIcon) {
+      previewAuthor.style.display = 'flex';
+      previewAuthorName.textContent = aName || '';
+      if (aIcon) {
+        previewAuthorIcon.style.display = 'block';
+        previewAuthorIcon.src = aIcon;
+      } else {
+        previewAuthorIcon.style.display = 'none';
+      }
+    } else {
+      previewAuthor.style.display = 'none';
+    }
+
+    // thumbnail
+    const tUrl = thumbInput.value.trim();
+    if (tUrl) {
+      previewThumbnail.style.display = 'block';
+      previewThumbnail.src = tUrl;
+    } else {
+      previewThumbnail.style.display = 'none';
+    }
+
+    // velika slika
+    const iUrl = imageInput.value.trim();
+    if (iUrl) {
+      previewImage.style.display = 'block';
+      previewImage.src = iUrl;
+    } else {
+      previewImage.style.display = 'none';
+    }
+
+    // footer + timestamp
+    const fText = footerTextInput.value.trim();
+    const fIcon = footerIconInput.value.trim();
+    const showTs = timestampInput.checked;
+
+    if (fText || fIcon || showTs) {
+      previewFooter.style.display = 'flex';
+      previewFooterText.textContent = fText || '';
+
+      if (fIcon) {
+        previewFooterIcon.style.display = 'block';
+        previewFooterIcon.src = fIcon;
+      } else {
+        previewFooterIcon.style.display = 'none';
+      }
+
+      if (showTs) {
+        const now = new Date();
+        previewTimestamp.textContent =
+          ' • ' + now.toLocaleDateString() + ' ' + now.toLocaleTimeString();
+      } else {
+        previewTimestamp.textContent = '';
+      }
+    } else {
+      previewFooter.style.display = 'none';
+    }
+  }
+
+  // event listeneri za sve inpute
+  [
+    titleInput, descInput, colorInput,
+    authorNameInput, authorIconInput,
+    footerTextInput, footerIconInput,
+    thumbInput, imageInput, timestampInput
+  ].forEach(el => el && el.addEventListener('input', updateEmbedPreview));
+
+  // sync: color picker → text input
+  if (colorPicker) {
+    colorPicker.addEventListener('input', () => {
+      colorInput.value = colorPicker.value;
+      updateEmbedPreview();
+    });
+  }
+
+  // sync: text input → color picker
+if (colorInput) {
+  colorInput.addEventListener('input', () => {
+    const v = safeHex(colorInput.value || '#00b0f4', '#00b0f4');
+    colorPicker.value = v;
+  });
+}
+
+// toggle prikaz boja
+const toggleColorPickerBtn = document.getElementById('toggleColorPicker');
+const colorPickerRow = document.getElementById('colorPickerRow');
+
+if (toggleColorPickerBtn && colorPickerRow) {
+  toggleColorPickerBtn.addEventListener('click', () => {
+    colorPickerRow.style.display =
+      colorPickerRow.style.display === 'none' ? 'flex' : 'none';
+  });
+}
+
+
+
+  updateEmbedPreview();
+</script>
 </body>
 </html>
