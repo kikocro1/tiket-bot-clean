@@ -289,7 +289,7 @@ app.listen(PORT, () => {
 const TICKET_CATEGORY_ID = '1437220354992115912';
 
 // ❗ kanal gdje idu AKTIVNI FARMING poslovi (npr. #posao-na-farmi)
-const FS_JOB_CHANNEL_ID = '1307137742408515635';
+const FS_JOB_CHANNEL_ID = '1442984129699254292';
 
 // ❗ kanal gdje idu ZAVRŠENI poslovi (npr. #zavrseni-poslovi)
 const FS_JOB_DONE_CHANNEL_ID = '1442951254287454399';
