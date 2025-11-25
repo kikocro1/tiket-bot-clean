@@ -16,17 +16,20 @@ const {
   PermissionFlagsBits,
   ButtonBuilder,
   ButtonStyle,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle,
 } = require('discord.js');
 
 // 🔹 ENV varijable
-const token  = process.env.TOKEN;
+const token = process.env.TOKEN;
 const clientId = process.env.CLIENT_ID;
-const guildId  = process.env.GUILD_ID?.trim();
+const guildId = process.env.GUILD_ID?.trim();
 
-const SUPPORT_ROLE_ID = process.env.SUPPORT_ROLE_ID; // koristimo ga dolje u ticketima
+const SUPPORT_ROLE_ID = process.env.SUPPORT_ROLE_ID; // rola za support
 
 // =====================
-//  "DB" PREKO JSON FAJLA
+//  "DB" PREKO JSON FAJLA (za dashboard: welcome/logging/embeds)
 // =====================
 
 const dbFile = path.join(__dirname, 'db.json');
@@ -40,7 +43,7 @@ function getDefaultData() {
     logging: {
       channelId: '',
     },
-    embeds: [], // povijest poslanih embedova
+    embeds: [],
   };
 }
 
@@ -50,7 +53,6 @@ function loadDb() {
     const parsed = JSON.parse(raw);
     return { ...getDefaultData(), ...parsed };
   } catch {
-    // ako nema fajla ili je pokvaren
     const def = getDefaultData();
     saveDb(def);
     return def;
@@ -68,7 +70,7 @@ saveDb(loadDb());
 //  EXPRESS + DASHBOARD
 // =====================
 
-const app  = express();
+const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.set('view engine', 'ejs');
@@ -101,7 +103,7 @@ function formatUptime(ms) {
   return parts.join(' ');
 }
 
-// root samo preusmjerava na /dashboard
+// root -> /dashboard
 app.get('/', (req, res) => {
   res.redirect('/dashboard');
 });
@@ -110,7 +112,6 @@ app.get('/', (req, res) => {
 app.get('/dashboard', async (req, res) => {
   const activeTab = req.query.tab || 'overview';
 
-  // 1) uvijek probaj svježe fetchati guild po ID-u
   let guild = null;
   try {
     guild = await client.guilds.fetch(guildId);
@@ -118,7 +119,12 @@ app.get('/dashboard', async (req, res) => {
     console.log('❌ Ne mogu fetchati guild:', guildId, e.message);
   }
 
-  console.log('Dashboard guild:', guild ? guild.name : 'NEMA GUILDA', 'ID:', guildId);
+  console.log(
+    'Dashboard guild:',
+    guild ? guild.name : 'NEMA GUILDA',
+    'ID:',
+    guildId
+  );
 
   const botData = {
     tag: client.user ? client.user.tag : 'Bot offline',
@@ -140,18 +146,18 @@ app.get('/dashboard', async (req, res) => {
         id: guildId,
       };
 
-  // 2) fetchaj kanale da sigurno popuniš cache
   let channels = [];
   if (guild) {
     try {
-      await guild.channels.fetch(); // 🔹 ovdje se puni cache
+      await guild.channels.fetch();
 
       channels = guild.channels.cache
-        .filter(c =>
-          c.type === ChannelType.GuildText ||
-          c.type === ChannelType.GuildAnnouncement
+        .filter(
+          (c) =>
+            c.type === ChannelType.GuildText ||
+            c.type === ChannelType.GuildAnnouncement
         )
-        .map(c => ({
+        .map((c) => ({
           id: c.id,
           name: c.name,
         }));
@@ -172,8 +178,6 @@ app.get('/dashboard', async (req, res) => {
     channels,
   });
 });
-
-
 
 // --------------- GREETINGS (WELCOME) ---------------
 app.post('/dashboard/greetings', (req, res) => {
@@ -214,7 +218,7 @@ app.post('/dashboard/embeds', async (req, res) => {
     imageUrl,
     authorName,
     authorIcon,
-    timestamp
+    timestamp,
   } = req.body;
 
   try {
@@ -222,26 +226,26 @@ app.post('/dashboard/embeds', async (req, res) => {
 
     const embed = new EmbedBuilder();
 
-    if (title)        embed.setTitle(title);
-    if (description)  embed.setDescription(description);
-    if (color)        embed.setColor(color);
+    if (title) embed.setTitle(title);
+    if (description) embed.setDescription(description);
+    if (color) embed.setColor(color);
 
     if (authorName || authorIcon) {
       embed.setAuthor({
         name: authorName || '',
-        iconURL: authorIcon || null
+        iconURL: authorIcon || null,
       });
     }
 
     if (footerText || footerIcon) {
       embed.setFooter({
         text: footerText || '',
-        iconURL: footerIcon || null
+        iconURL: footerIcon || null,
       });
     }
 
     if (thumbnailUrl) embed.setThumbnail(thumbnailUrl);
-    if (imageUrl)     embed.setImage(imageUrl);
+    if (imageUrl) embed.setImage(imageUrl);
 
     if (timestamp === 'on') {
       embed.setTimestamp(new Date());
@@ -249,24 +253,22 @@ app.post('/dashboard/embeds', async (req, res) => {
 
     await ch.send({ embeds: [embed] });
 
-    // spremi u povijest
     const data = loadDb();
-data.embeds.push({
-  channelId: embedChannelId,
-  title,
-  description,
-  color,
-  footerText,
-  footerIcon,
-  thumbnailUrl,
-  imageUrl,
-  authorName,
-  authorIcon,
-  timestamp: timestamp === 'on',
-  sentAt: new Date().toISOString(),
-});
-saveDb(data);
-
+    data.embeds.push({
+      channelId: embedChannelId,
+      title,
+      description,
+      color,
+      footerText,
+      footerIcon,
+      thumbnailUrl,
+      imageUrl,
+      authorName,
+      authorIcon,
+      timestamp: timestamp === 'on',
+      sentAt: new Date().toISOString(),
+    });
+    saveDb(data);
 
     res.redirect('/dashboard?tab=embeds');
   } catch (err) {
@@ -283,15 +285,24 @@ app.listen(PORT, () => {
 //  DISCORD BOT DIO
 // =====================
 
-// ❗ OVDJE UPIŠI SVOJE ID-OVE:
-const TICKET_CATEGORY_ID = '1437220354992115912'; // kategorija gdje idu tiketi
+// ❗ kategorija gdje idu tiketi
+const TICKET_CATEGORY_ID = '1437220354992115912';
+
+// ❗ kanal gdje idu AKTIVNI FARMING poslovi (npr. #posao-na-farmi)
+const FS_JOB_CHANNEL_ID = '1307137742408515635';
+
+// ❗ kanal gdje idu ZAVRŠENI poslovi (npr. #zavrseni-poslovi)
+const FS_JOB_DONE_CHANNEL_ID = '1442951254287454399';
+
+// mapa za FARMING zadatke (po korisniku)
+const activeTasks = new Map(); // key: userId, value: { field: string | null }
 
 console.log('▶ Pokrećem bota...');
 
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMembers, // za guildMemberAdd
+    GatewayIntentBits.GuildMembers,
   ],
 });
 
@@ -324,16 +335,18 @@ client.on('guildMemberAdd', async (member) => {
       .fetch(data.logging.channelId)
       .catch(() => null);
     if (logCh) {
-      logCh.send(`✅ Novi član: ${member.user.tag} (ID: ${member.id})`).catch(
-        () => {},
-      );
+      logCh
+        .send(`✅ Novi član: ${member.user.tag} (ID: ${member.id})`)
+        .catch(() => {});
     }
   }
 });
 
-// ============== SLASH KOMANDA /ticket-panel ==============
+// ============== SLASH KOMANDE + INTERAKCIJE ==============
 client.on('interactionCreate', async (interaction) => {
+  // ---------- SLASH KOMANDE ----------
   if (interaction.isChatInputCommand()) {
+    // /ticket-panel
     if (interaction.commandName === 'ticket-panel') {
       const embed = new EmbedBuilder()
         .setColor('#ffd000')
@@ -355,7 +368,7 @@ client.on('interactionCreate', async (interaction) => {
             '• Ne pingajte staff bez razloga – netko će vam se javiti.\n' +
             '• Tiket bez odgovora korisnika 48h bit će zatvoren.\n' +
             '• Ne otvarajte tikete u pogrešnoj kategoriji.\n' +
-            '• Kršenje pravila može rezultirati zatvaranjem tiketa ili sankcijama.',
+            '• Kršenje pravila može rezultirati zatvaranjem tiketa ili sankcijama.'
         );
 
       const menu = new StringSelectMenuBuilder()
@@ -365,7 +378,7 @@ client.on('interactionCreate', async (interaction) => {
           {
             label: 'Igranje na serveru',
             description:
-              'Ako želis igrati s nama samo otvori ticket i odgovori na pitanja.',
+              'Ako želiš igrati s nama samo otvori ticket i odgovori na pitanja.',
             value: 'igranje',
             emoji: '🎮',
           },
@@ -380,7 +393,7 @@ client.on('interactionCreate', async (interaction) => {
             description: 'Ako trebaš pomoć ili savjet oko edita modova.',
             value: 'modovi',
             emoji: '🧩',
-          },
+          }
         );
 
       const row = new ActionRowBuilder().addComponents(menu);
@@ -391,14 +404,37 @@ client.on('interactionCreate', async (interaction) => {
       const channel = interaction.channel;
       await channel.send({ embeds: [embed], components: [row] });
     }
+
+    // /task-panel – Farming zadaci
+    if (interaction.commandName === 'task-panel') {
+      const embed = new EmbedBuilder()
+        .setColor('#00a84d')
+        .setTitle('🚜 Farming Simulator 25 – Kreiraj zadatak')
+        .setDescription(
+          'Klikni na gumb ispod kako bi započeo kreiranje novog zadatka.'
+        );
+
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('task_start')
+          .setLabel('➕ Kreiraj posao')
+          .setStyle(ButtonStyle.Success)
+      );
+
+      await interaction.deferReply({ ephemeral: true });
+      await interaction.deleteReply();
+
+      const channel = interaction.channel;
+      await channel.send({ embeds: [embed], components: [row] });
+    }
   }
 
-  // ============== KREIRANJE TIKETA (dropdown) ==============
+  // ---------- KREIRANJE TIKETA (dropdown) ----------
   if (
     interaction.isStringSelectMenu() &&
     interaction.customId === 'ticket_category'
   ) {
-    const type = interaction.values[0]; // igranje / zalba / modovi
+    const type = interaction.values[0];
     const guild = interaction.guild;
     const member = interaction.member;
 
@@ -414,7 +450,7 @@ client.on('interactionCreate', async (interaction) => {
           deny: [PermissionFlagsBits.ViewChannel],
         },
         {
-          id: SUPPORT_ROLE_ID, // iz .env
+          id: SUPPORT_ROLE_ID,
           allow: [
             PermissionFlagsBits.ViewChannel,
             PermissionFlagsBits.SendMessages,
@@ -487,7 +523,7 @@ client.on('interactionCreate', async (interaction) => {
       new ButtonBuilder()
         .setCustomId('ticket_close')
         .setLabel('Zatvori tiket')
-        .setStyle(ButtonStyle.Danger),
+        .setStyle(ButtonStyle.Danger)
     );
 
     await channel.send({
@@ -501,35 +537,426 @@ client.on('interactionCreate', async (interaction) => {
     });
   }
 
-  // ============== DUGMAD: CLAIM & CLOSE ==============
+  // ---------- BUTTONI (TICKETI + FARMING) ----------
   if (interaction.isButton()) {
-    const hasStaffPerms =
-      interaction.member.permissions.has(PermissionFlagsBits.ManageChannels);
+    // === FARMING: START KREIRANJA POSLA ===
+    if (interaction.customId === 'task_start') {
+      activeTasks.set(interaction.user.id, { field: null });
 
-    if (!hasStaffPerms) {
-      return interaction.reply({
-        content: '⛔ Samo staff/admin može koristiti ovu opciju.',
-        ephemeral: true,
-      });
-    }
+      const FIELDS = [
+        '2',
+        '3',
+        '5',
+        '16',
+        '17',
+        '33',
+        '34',
+        '35',
+        '36',
+        '37',
+        '6-7-8-11',
+        '30-31',
+      ];
 
-    if (interaction.customId === 'ticket_claim') {
+      const perRow = 5;
+      const rows = [];
+
+      for (let i = 0; i < FIELDS.length; i += perRow) {
+        const row = new ActionRowBuilder();
+        const slice = FIELDS.slice(i, i + perRow);
+
+        for (const field of slice) {
+          row.addComponents(
+            new ButtonBuilder()
+              .setCustomId(`task_field_${field}`)
+              .setLabel(`Polje ${field}`)
+              .setStyle(ButtonStyle.Secondary)
+          );
+        }
+
+        rows.push(row);
+      }
+
+      const embed = new EmbedBuilder()
+        .setColor('#00a84d')
+        .setTitle('🚜 Kreiranje zadatka – Korak 1')
+        .setDescription('Odaberi polje za koje želiš kreirati posao.');
+
       await interaction.reply({
-        content: `✅ Ticket je preuzeo/la ${interaction.user}.`,
+        embeds: [embed],
+        components: rows,
+        ephemeral: true,
       });
       return;
     }
 
-    if (interaction.customId === 'ticket_close') {
+    // === FARMING: ODABIR POLJA ===
+    if (interaction.customId.startsWith('task_field_')) {
+      const fieldId = interaction.customId.replace('task_field_', '');
+
+      const current = activeTasks.get(interaction.user.id) || {};
+      current.field = fieldId;
+      activeTasks.set(interaction.user.id, current);
+
+      const embed = new EmbedBuilder()
+        .setColor('#00a84d')
+        .setTitle('🚜 Kreiranje zadatka – Korak 2')
+        .setDescription(
+          `Odabrano polje: **Polje ${fieldId}**\n\nSada odaberi vrstu posla:`
+        );
+
+      const jobsRow1 = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('task_job_oranje')
+          .setLabel('Oranje')
+          .setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
+          .setCustomId('task_job_lajn')
+          .setLabel('Bacanje lajma')
+          .setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
+          .setCustomId('task_job_djubrenje')
+          .setLabel('Đubrenje')
+          .setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
+          .setCustomId('task_job_tanjiranje')
+          .setLabel('Tanjiranje')
+          .setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
+          .setCustomId('task_job_podrivanje')
+          .setLabel('Podrivanje')
+          .setStyle(ButtonStyle.Primary)
+      );
+
+      const jobsRow2 = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('task_job_herbicid')
+          .setLabel('Herbicid')
+          .setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
+          .setCustomId('task_job_kosnja_trave')
+          .setLabel('Košnja trave')
+          .setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
+          .setCustomId('task_job_kosnja_djeteline')
+          .setLabel('Košnja djeteline')
+          .setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
+          .setCustomId('task_job_kombajniranje_modal') // ⬅️ kombajniranje ide na modal
+          .setLabel('Kombajniranje')
+          .setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
+          .setCustomId('task_job_sijanje')
+          .setLabel('Sijanje')
+          .setStyle(ButtonStyle.Success)
+      );
+
+      await interaction.update({
+        embeds: [embed],
+        components: [jobsRow1, jobsRow2],
+      });
+      return;
+    }
+
+    // === FARMING: ODABIR POSLA (sve osim sijanja i kombajniranja s modalom) ===
+    if (
+      interaction.customId.startsWith('task_job_') &&
+      interaction.customId !== 'task_job_sijanje' &&
+      interaction.customId !== 'task_job_kombajniranje_modal'
+    ) {
+      const current = activeTasks.get(interaction.user.id);
+      if (!current || !current.field) {
+        await interaction.reply({
+          content:
+            '⚠️ Nije pronađeno polje. Pokušaj ponovno klikom na „Kreiraj posao“.',
+          ephemeral: true,
+        });
+        return;
+      }
+
+      const jobKey = interaction.customId.replace('task_job_', '');
+      const jobNames = {
+        oranje: 'Oranje',
+        lajn: 'Bacanje lajma',
+        djubrenje: 'Đubrenje',
+        tanjiranje: 'Tanjiranje',
+        podrivanje: 'Podrivanje',
+        herbicid: 'Prskanje herbicidom',
+        kosnja_trave: 'Košnja trave',
+        kosnja_djeteline: 'Košnja djeteline',
+      };
+      const jobName = jobNames[jobKey] || jobKey;
+
+      const embed = new EmbedBuilder()
+        .setColor('#00a84d')
+        .setTitle('✅ Novi zadatak kreiran')
+        .addFields(
+          { name: 'Polje', value: `Polje ${current.field}`, inline: true },
+          { name: 'Posao', value: jobName, inline: true },
+          { name: 'Izradio', value: `<@${interaction.user.id}>`, inline: true }
+        )
+        .setTimestamp();
+
+      const doneRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('task_done')
+          .setLabel('✅ Zadatak završen')
+          .setStyle(ButtonStyle.Success)
+      );
+
+      const jobChannel = await interaction.guild.channels.fetch(
+        FS_JOB_CHANNEL_ID
+      );
+
       await interaction.reply({
-        content: '🔒 Ticket je zatvoren. Kanal je označen kao zatvoren.',
+        content: '✅ Zadatak je kreiran i objavljen u kanalu za poslove.',
         ephemeral: true,
       });
 
-      if (!interaction.channel.name.startsWith('closed-')) {
-        await interaction.channel.setName(`closed-${interaction.channel.name}`);
+      await jobChannel.send({
+        embeds: [embed],
+        components: [doneRow],
+      });
+
+      activeTasks.delete(interaction.user.id);
+      return;
+    }
+
+    // === FARMING: Sijanje – otvaranje modala ===
+    if (interaction.customId === 'task_job_sijanje') {
+      const current = activeTasks.get(interaction.user.id);
+      if (!current || !current.field) {
+        await interaction.reply({
+          content:
+            '⚠️ Nije pronađeno polje. Pokušaj ponovno klikom na „Kreiraj posao“.',
+          ephemeral: true,
+        });
+        return;
       }
 
+      const modal = new ModalBuilder()
+        .setCustomId('task_sowing_modal')
+        .setTitle('Sijanje – unos kulture');
+
+      const input = new TextInputBuilder()
+        .setCustomId('seed_name')
+        .setLabel('Što se sije? (npr. kukuruz, ječam...)')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true);
+
+      const row = new ActionRowBuilder().addComponents(input);
+      modal.addComponents(row);
+
+      await interaction.showModal(modal);
+      return;
+    }
+
+    // === FARMING: Kombajniranje – otvaranje modala ===
+    if (interaction.customId === 'task_job_kombajniranje_modal') {
+      const current = activeTasks.get(interaction.user.id);
+      if (!current || !current.field) {
+        await interaction.reply({
+          content:
+            '⚠️ Nije pronađeno polje. Pokušaj ponovno klikom na „Kreiraj posao“.',
+          ephemeral: true,
+        });
+        return;
+      }
+
+      const modal = new ModalBuilder()
+        .setCustomId('task_harvest_modal')
+        .setTitle('Kombajniranje – unos detalja');
+
+      const input = new TextInputBuilder()
+        .setCustomId('harvest_info')
+        .setLabel('Što se kombajnira? (npr. pšenica, soja...)')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true);
+
+      const row = new ActionRowBuilder().addComponents(input);
+      modal.addComponents(row);
+
+      await interaction.showModal(modal);
+      return;
+    }
+
+    // === FARMING: označi zadatak kao završen ===
+    if (interaction.customId === 'task_done') {
+      const oldEmbed = interaction.message.embeds[0];
+
+      if (!oldEmbed) {
+        await interaction.reply({
+          content: '⚠️ Ne mogu pronaći podatke o zadatku.',
+          ephemeral: true,
+        });
+        return;
+      }
+
+      const finishedEmbed = EmbedBuilder.from(oldEmbed)
+        .setColor('#3ba55d')
+        .setTitle('✅ Zadatak završen')
+        .setFooter({
+          text: 'Označeno kao završeno od strane: ' + interaction.user.tag,
+        });
+
+      const doneChannel = await interaction.guild.channels.fetch(
+        FS_JOB_DONE_CHANNEL_ID
+      );
+
+      await doneChannel.send({ embeds: [finishedEmbed] });
+
+      await interaction.reply({
+        content:
+          '✅ Zadatak je označen kao završen i prebačen u kanal za završene poslove.',
+        ephemeral: true,
+      });
+
+      await interaction.message.delete().catch(() => {});
+
+      return;
+    }
+
+    // === TICKET DUGMAD: CLAIM & CLOSE ===
+    if (
+      interaction.customId === 'ticket_claim' ||
+      interaction.customId === 'ticket_close'
+    ) {
+      const hasStaffPerms = interaction.member.permissions.has(
+        PermissionFlagsBits.ManageChannels
+      );
+
+      if (!hasStaffPerms) {
+        return interaction.reply({
+          content: '⛔ Samo staff/admin može koristiti ovu opciju.',
+          ephemeral: true,
+        });
+      }
+
+      if (interaction.customId === 'ticket_claim') {
+        await interaction.reply({
+          content: `✅ Ticket je preuzeo/la ${interaction.user}.`,
+        });
+        return;
+      }
+
+      if (interaction.customId === 'ticket_close') {
+        await interaction.reply({
+          content: '🔒 Ticket je zatvoren. Kanal je označen kao zatvoren.',
+          ephemeral: true,
+        });
+
+        if (!interaction.channel.name.startsWith('closed-')) {
+          await interaction.channel.setName(
+            `closed-${interaction.channel.name}`
+          );
+        }
+
+        return;
+      }
+    }
+  }
+
+  // ---------- MODALI (SIJANJE + KOMBAJNIRANJE) ----------
+  if (interaction.isModalSubmit()) {
+    // Sijanje
+    if (interaction.customId === 'task_sowing_modal') {
+      const current = activeTasks.get(interaction.user.id);
+      if (!current || !current.field) {
+        await interaction.reply({
+          content:
+            '⚠️ Ne mogu pronaći odabrano polje. Pokušaj ponovno od početka.',
+          ephemeral: true,
+        });
+        return;
+      }
+
+      const seedName = interaction.fields.getTextInputValue('seed_name');
+
+      const embed = new EmbedBuilder()
+        .setColor('#00a84d')
+        .setTitle('✅ Novi zadatak kreiran')
+        .addFields(
+          { name: 'Polje', value: `Polje ${current.field}`, inline: true },
+          { name: 'Posao', value: 'Sijanje', inline: true },
+          { name: 'Kultura', value: seedName, inline: true },
+          { name: 'Izradio', value: `<@${interaction.user.id}>`, inline: true }
+        )
+        .setTimestamp();
+
+      const doneRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('task_done')
+          .setLabel('✅ Zadatak završen')
+          .setStyle(ButtonStyle.Success)
+      );
+
+      const jobChannel = await interaction.guild.channels.fetch(
+        FS_JOB_CHANNEL_ID
+      );
+
+      await interaction.reply({
+        content:
+          '✅ Zadatak za sijanje je kreiran i objavljen u kanalu za poslove.',
+        ephemeral: true,
+      });
+
+      await jobChannel.send({
+        embeds: [embed],
+        components: [doneRow],
+      });
+
+      activeTasks.delete(interaction.user.id);
+      return;
+    }
+
+    // Kombajniranje
+    if (interaction.customId === 'task_harvest_modal') {
+      const current = activeTasks.get(interaction.user.id);
+      if (!current || !current.field) {
+        await interaction.reply({
+          content:
+            '⚠️ Ne mogu pronaći odabrano polje. Pokušaj ponovno od početka.',
+          ephemeral: true,
+        });
+        return;
+      }
+
+      const harvestInfo = interaction.fields.getTextInputValue('harvest_info');
+
+      const embed = new EmbedBuilder()
+        .setColor('#00a84d')
+        .setTitle('✅ Novi zadatak kreiran')
+        .addFields(
+          { name: 'Polje', value: `Polje ${current.field}`, inline: true },
+          { name: 'Posao', value: 'Kombajniranje', inline: true },
+          { name: 'Detalji', value: harvestInfo, inline: true },
+          { name: 'Izradio', value: `<@${interaction.user.id}>`, inline: true }
+        )
+        .setTimestamp();
+
+      const doneRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('task_done')
+          .setLabel('✅ Zadatak završen')
+          .setStyle(ButtonStyle.Success)
+      );
+
+      const jobChannel = await interaction.guild.channels.fetch(
+        FS_JOB_CHANNEL_ID
+      );
+
+      await interaction.reply({
+        content:
+          '✅ Zadatak za kombajniranje je kreiran i objavljen u kanalu za poslove.',
+        ephemeral: true,
+      });
+
+      await jobChannel.send({
+        embeds: [embed],
+        components: [doneRow],
+      });
+
+      activeTasks.delete(interaction.user.id);
       return;
     }
   }
