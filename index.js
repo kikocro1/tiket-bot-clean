@@ -465,6 +465,15 @@ client.on('interactionCreate', async (interaction) => {
             PermissionFlagsBits.ReadMessageHistory,
           ],
         },
+        {
+          // 🔹 pobrini se da BOT uvijek ima pristup ticket kanalu
+          id: client.user.id,
+          allow: [
+            PermissionFlagsBits.ViewChannel,
+            PermissionFlagsBits.SendMessages,
+            PermissionFlagsBits.ReadMessageHistory,
+          ],
+        },
       ],
     });
 
@@ -473,7 +482,7 @@ client.on('interactionCreate', async (interaction) => {
     switch (type) {
       case 'igranje':
         ticketMessage = [
-          `🎮 Zdravo ${member}, hvala što si otvorio **Igranje na serveru** ticket.`,
+          `🎮 Zdravo <@${member.id}>, hvala što si otvorio **Igranje na serveru** ticket.`,
           '',
           '# 🧾 Evo da skratimo stvari i ubrzamo proces',
           '',
@@ -493,7 +502,7 @@ client.on('interactionCreate', async (interaction) => {
 
       case 'zalba':
         ticketMessage =
-          `⚠️ Zdravo ${member}, hvala što si otvorio **žalbu na igrače**.\n` +
+          `⚠️ Zdravo <@${member.id}>, hvala što si otvorio **žalbu na igrače**.\n` +
           'Molimo te da navedeš:\n' +
           '• Ime igrača na kojeg se žališ\n' +
           '• Vrijeme i detaljan opis situacije\n' +
@@ -503,14 +512,14 @@ client.on('interactionCreate', async (interaction) => {
 
       case 'modovi':
         ticketMessage =
-          `🧩 Zdravo ${member}, hvala što si otvorio **izrada modova** ticket.\n` +
+          `🧩 Zdravo <@${member.id}>, hvala što si otvorio **izrada modova** ticket.\n` +
           'Opiši kakav mod radiš ili s kojim dijelom imaš problem.\n' +
           '💡 Slobodno pošalji kod, ideju ili primjer – što više informacija daš, lakše ćemo pomoći.';
         break;
 
       default:
         ticketMessage =
-          `👋 Zdravo ${member}, hvala što si otvorio ticket.\n` +
+          `👋 Zdravo <@${member.id}>, hvala što si otvorio ticket.\n` +
           'Molimo te da opišeš svoj problem što detaljnije.';
         break;
     }
@@ -642,7 +651,7 @@ client.on('interactionCreate', async (interaction) => {
           .setLabel('Košnja djeteline')
           .setStyle(ButtonStyle.Primary),
         new ButtonBuilder()
-          .setCustomId('task_job_kombajniranje_modal') // ⬅️ kombajniranje ide na modal
+          .setCustomId('task_job_kombajniranje_modal') // kombajniranje ide na modal
           .setLabel('Kombajniranje')
           .setStyle(ButtonStyle.Primary),
         new ButtonBuilder()
