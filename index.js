@@ -659,9 +659,32 @@ client.on('interactionCreate', async (interaction) => {
           .setStyle(ButtonStyle.Success)
       );
 
+      const jobsRow3 = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('task_job_malciranje')
+          .setLabel('Malčiranje')
+          .setStyle(ButtonStyle.Primary),
+          new ButtonBuilder()
+          .setCustomId('task_job_spajanje')
+          .setLabel('Spajaanje polja')
+          .setStyle(ButtonStyle.Primary),
+          new ButtonBuilder()
+          .setCustomId('task_job_baliranje')
+          .setLabel('Baliranje')
+          .setStyle(ButtonStyle.Primary),
+          new ButtonBuilder()
+          .setCustomId('task_job_skupljanje')
+          .setLabel('Skupljanje u redove')
+          .setStyle(ButtonStyle.Primary),
+          new ButtonBuilder()
+          .setCustomId('task_job_okretanje')
+          .setLabel('Prevrtanje trave / djeteline')
+          .setStyle(ButtonStyle.Primary)
+      );
+
       await interaction.update({
         embeds: [embed],
-        components: [jobsRow1, jobsRow2],
+        components: [jobsRow1, jobsRow2, jobsRow3],
       });
       return;
     }
@@ -692,6 +715,11 @@ client.on('interactionCreate', async (interaction) => {
         herbicid: 'Prskanje herbicidom',
         kosnja_trave: 'Košnja trave',
         kosnja_djeteline: 'Košnja djeteline',
+        malciranje: 'Malčiranje',
+        spajanje: 'Spajaanje polja',
+        baliranje: 'Baliranje',
+        skupljanje: 'Skupljanje u redove',
+        okretanje: 'Prevrtanje trave / djeteline',
       };
       const jobName = jobNames[jobKey] || jobKey;
 
