@@ -553,8 +553,6 @@ client.on('interactionCreate', async (interaction) => {
       activeTasks.set(interaction.user.id, { field: null });
 
       const FIELDS = [
-        '2',
-        '3',
         '5',
         '16',
         '17',
@@ -565,6 +563,7 @@ client.on('interactionCreate', async (interaction) => {
         '37',
         '6-7-8-11',
         '30-31',
+        '2-3',
       ];
 
       const perRow = 5;
@@ -802,7 +801,7 @@ client.on('interactionCreate', async (interaction) => {
       }
 
       const finishedEmbed = EmbedBuilder.from(oldEmbed)
-        .setColor('#3ba55d')
+        .setColor('#9aa53bff')
         .setTitle('✅ Zadatak završen')
         .setFooter({
           text: 'Označeno kao završeno od strane: ' + interaction.user.tag,
