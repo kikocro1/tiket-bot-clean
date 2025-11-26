@@ -666,7 +666,7 @@ client.on('interactionCreate', async (interaction) => {
           .setStyle(ButtonStyle.Primary),
           new ButtonBuilder()
           .setCustomId('task_job_spajanje')
-          .setLabel('Spajaanje polja')
+          .setLabel('Spajanje polja')
           .setStyle(ButtonStyle.Primary),
           new ButtonBuilder()
           .setCustomId('task_job_baliranje')
@@ -682,9 +682,16 @@ client.on('interactionCreate', async (interaction) => {
           .setStyle(ButtonStyle.Primary)
       );
 
+    const jobsRow4 = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('task_job_zamotavanje')
+          .setLabel('Zamotati bale za silažu')
+          .setStyle(ButtonStyle.Primary),
+          );
+
       await interaction.update({
         embeds: [embed],
-        components: [jobsRow1, jobsRow2, jobsRow3],
+        components: [jobsRow1, jobsRow2, jobsRow3, jobsRow4],
       });
       return;
     }
@@ -716,10 +723,11 @@ client.on('interactionCreate', async (interaction) => {
         kosnja_trave: 'Košnja trave',
         kosnja_djeteline: 'Košnja djeteline',
         malciranje: 'Malčiranje',
-        spajanje: 'Spajaanje polja',
+        spajanje: 'Spajanje polja',
         baliranje: 'Baliranje',
         skupljanje: 'Skupljanje u redove',
         okretanje: 'Prevrtanje trave / djeteline',
+        zamotavanje: 'Zamotati bale za silažu',
       };
       const jobName = jobNames[jobKey] || jobKey;
 
