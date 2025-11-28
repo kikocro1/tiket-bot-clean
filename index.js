@@ -695,6 +695,10 @@ client.on('interactionCreate', async (interaction) => {
           .setCustomId('task_job_ceste')
           .setLabel('Čišćenje ceste')
           .setStyle(ButtonStyle.Primary),
+          new ButtonBuilder()
+          .setCustomId('task_job_rolanje')
+          .setLabel('Rolanje polja')
+          .setStyle(ButtonStyle.Primary),
           );
 
       await interaction.update({
@@ -737,7 +741,8 @@ client.on('interactionCreate', async (interaction) => {
         okretanje: 'Prevrtanje trave / djeteline',
         zamotavanje: 'Zamotati bale za silažu',
         zimska: 'Zimska brazda',
-        ceste: 'Čišćenje ceste,'
+        ceste: 'Čišćenje ceste',
+        rolanje: 'Rolanje polja',
       };
       const jobName = jobNames[jobKey] || jobKey;
 
