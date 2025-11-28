@@ -652,7 +652,7 @@ client.on('interactionCreate', async (interaction) => {
         new ButtonBuilder()
           .setCustomId('task_job_kombajniranje_modal') // kombajniranje ide na modal
           .setLabel('Kombajniranje')
-          .setStyle(ButtonStyle.Primary),
+          .setStyle(ButtonStyle.Success),
         new ButtonBuilder()
           .setCustomId('task_job_sijanje')
           .setLabel('Sijanje')
@@ -686,6 +686,14 @@ client.on('interactionCreate', async (interaction) => {
         new ButtonBuilder()
           .setCustomId('task_job_zamotavanje')
           .setLabel('Zamotati bale za silažu')
+          .setStyle(ButtonStyle.Primary),
+          new ButtonBuilder()
+          .setCustomId('task_job_zimska')
+          .setLabel('Zimska brazda')
+          .setStyle(ButtonStyle.Primary),
+          new ButtonBuilder()
+          .setCustomId('task_job_ceste')
+          .setLabel('Čišćenje ceste')
           .setStyle(ButtonStyle.Primary),
           );
 
@@ -728,6 +736,8 @@ client.on('interactionCreate', async (interaction) => {
         skupljanje: 'Skupljanje u redove',
         okretanje: 'Prevrtanje trave / djeteline',
         zamotavanje: 'Zamotati bale za silažu',
+        zimska: 'Zimska brazda',
+        ceste: 'Čišćenje ceste,'
       };
       const jobName = jobNames[jobKey] || jobKey;
 
