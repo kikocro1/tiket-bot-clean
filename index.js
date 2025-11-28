@@ -837,7 +837,7 @@ client.on('interactionCreate', async (interaction) => {
       }
 
       const finishedEmbed = EmbedBuilder.from(oldEmbed)
-        .setColor('#9aa53bff')
+        .setColor('#ff0000')
         .setTitle('✅ Zadatak završen')
         .setFooter({
           text: 'Označeno kao završeno od strane: ' + interaction.user.tag,
