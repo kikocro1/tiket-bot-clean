@@ -564,6 +564,7 @@ client.on('interactionCreate', async (interaction) => {
         '6-7-8-11',
         '30-31',
         '2-3',
+        '24',
       ];
 
       const perRow = 5;
