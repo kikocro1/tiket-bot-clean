@@ -587,7 +587,7 @@ client.on('interactionCreate', async (interaction) => {
       }
 
       const embed = new EmbedBuilder()
-        .setColor('#00a84d')
+        .setColor('#ffd900')
         .setTitle('🚜 Kreiranje zadatka – Korak 1')
         .setDescription('Odaberi polje za koje želiš kreirati posao.');
 
