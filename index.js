@@ -408,7 +408,7 @@ client.on('interactionCreate', async (interaction) => {
     // /task-panel – Farming zadaci
     if (interaction.commandName === 'task-panel') {
       const embed = new EmbedBuilder()
-        .setColor('#00a84d')
+        .setColor('#ffd900')
         .setTitle('🚜 Farming Simulator 25 – Kreiraj zadatak')
         .setDescription(
           'Klikni na gumb ispod kako bi započeo kreiranje novog zadatka.'
