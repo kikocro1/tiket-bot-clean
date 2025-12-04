@@ -1,4 +1,4 @@
-// 🔹 prvo učitaj .env
+// 🔹 prvo učitaj .env 
 require('dotenv').config();
 
 const path = require('path');
@@ -288,6 +288,9 @@ app.listen(PORT, () => {
 // ❗ kategorija gdje idu tiketi
 const TICKET_CATEGORY_ID = '1437220354992115912';
 
+// ❗ kanal gdje ide TRANSKRIPT zatvorenih tiketa  🔴 PROMIJENI OVO NA SVOJ KANAL
+const TICKET_LOG_CHANNEL_ID = '1437218054718095410';
+
 // ❗ kanal gdje idu AKTIVNI FARMING poslovi (npr. #posao-na-farmi)
 const FS_JOB_CHANNEL_ID = '1442984129699254292';
 
@@ -297,12 +300,21 @@ const FS_JOB_DONE_CHANNEL_ID = '1442951254287454399';
 // mapa za FARMING zadatke (po korisniku)
 const activeTasks = new Map(); // key: userId, value: { field: string | null }
 
+// === mapa za ticket REMINDER-e (kanal -> intervalId) ===
+const ticketReminders = new Map();
+const TICKET_REMINDER_INTERVAL_MS = 3 * 60 * 60 * 1000; // 3 sata
+
+// === mapa za AUTO-CLOSE tiketa (kanal -> timeoutId) ===
+const ticketInactivity = new Map();
+const TICKET_AUTO_CLOSE_MS = 48 * 60 * 60 * 1000; // 48 sati
+
 console.log('▶ Pokrećem bota...');
 
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildMessages, // za messageCreate
   ],
 });
 
@@ -313,6 +325,192 @@ client.once('ready', () => {
 client.on('error', (err) => {
   console.error('❌ Client error:', err);
 });
+
+// === helperi za reminder ===
+function stopTicketReminder(channelId) {
+  const intervalId = ticketReminders.get(channelId);
+  if (intervalId) {
+    clearInterval(intervalId);
+    ticketReminders.delete(channelId);
+  }
+}
+
+function startTicketReminder(channel, userId) {
+  stopTicketReminder(channel.id);
+
+  const intervalId = setInterval(async () => {
+    try {
+      const ch = await channel.client.channels.fetch(channel.id).catch(() => null);
+      if (!ch || ch.deleted) {
+        stopTicketReminder(channel.id);
+        return;
+      }
+
+      if (ch.name.startsWith('closed-')) {
+        stopTicketReminder(channel.id);
+        return;
+      }
+
+      await ch.send({
+        content:
+          `Hej <@${userId}>! 😊\n` +
+          `Još uvijek nisi odgovorio na pitanja koja su ti postavljena na početku tiketa.\n\n` +
+          `📌 Molimo te da se vratiš na prvu poruku u tiketu i odgovoriš redom na sva pitanja ` +
+          `kako bismo mogli nastaviti s procesom. Hvala ti!`,
+      });
+    } catch (err) {
+      console.error('Greška pri slanju ticket remindera:', err);
+    }
+  }, TICKET_REMINDER_INTERVAL_MS);
+
+  ticketReminders.set(channel.id, intervalId);
+}
+
+// === helperi za AUTO-CLOSE nakon 48h ===
+function stopTicketInactivity(channelId) {
+  const timeoutId = ticketInactivity.get(channelId);
+  if (timeoutId) {
+    clearTimeout(timeoutId);
+    ticketInactivity.delete(channelId);
+  }
+}
+
+function startTicketInactivity(channel) {
+  stopTicketInactivity(channel.id);
+
+  const timeoutId = setTimeout(async () => {
+    try {
+      const ch = await channel.client.channels.fetch(channel.id).catch(() => null);
+      if (!ch || ch.deleted) {
+        stopTicketInactivity(channel.id);
+        return;
+      }
+
+      // ako je već ručno zatvoren
+      if (ch.name.startsWith('closed-')) {
+        stopTicketInactivity(channel.id);
+        return;
+      }
+
+      const guild = ch.guild;
+      const topic = ch.topic || '';
+      const match = topic.match(/Ticket owner:\s*(\d+)/i);
+      const ticketOwnerId = match ? match[1] : null;
+
+      await ch.send(
+        '⏰ Ticket je automatski zatvoren jer 48 sati nije bilo aktivnosti ' +
+        'od strane korisnika niti tima. Ako i dalje trebaš pomoć, slobodno otvori novi tiket.'
+      ).catch(() => {});
+
+      // preimenuj
+      if (!ch.name.startsWith('closed-')) {
+        await ch.setName(`closed-${ch.name}`).catch(() => {});
+      }
+
+      // zaključaj permisije
+      await ch.permissionOverwrites
+        .edit(guild.roles.everyone, {
+          SendMessages: false,
+          AddReactions: false,
+        })
+        .catch(() => {});
+
+      if (ticketOwnerId) {
+        await ch.permissionOverwrites
+          .edit(ticketOwnerId, {
+            SendMessages: false,
+            AddReactions: false,
+          })
+          .catch(() => {});
+      }
+
+      if (SUPPORT_ROLE_ID) {
+        await ch.permissionOverwrites
+          .edit(SUPPORT_ROLE_ID, {
+            ViewChannel: true,
+            SendMessages: true,
+            ReadMessageHistory: true,
+          })
+          .catch(() => {});
+      }
+
+      await ch.permissionOverwrites
+        .edit(ch.client.user.id, {
+          ViewChannel: true,
+          SendMessages: true,
+          ReadMessageHistory: true,
+        })
+        .catch(() => {});
+
+      // pošalji transkript (bot kao "zatvorio")
+      await sendTicketTranscript(ch, ch.client.user);
+
+      // ugasi i reminder ako postoji
+      stopTicketReminder(ch.id);
+
+      // obriši kanal nakon 10 sekundi
+      setTimeout(() => {
+        ch.delete().catch(() => {});
+      }, 10_000);
+    } catch (err) {
+      console.error('Greška u auto-close tiketa:', err);
+    } finally {
+      stopTicketInactivity(channel.id);
+    }
+  }, TICKET_AUTO_CLOSE_MS);
+
+  ticketInactivity.set(channel.id, timeoutId);
+}
+
+// === helper za transkript tiketa ===
+async function sendTicketTranscript(channel, closedByUser) {
+  if (!TICKET_LOG_CHANNEL_ID) return;
+
+  try {
+    const logChannel = await channel.client.channels
+      .fetch(TICKET_LOG_CHANNEL_ID)
+      .catch(() => null);
+    if (!logChannel) return;
+
+    let allMessages = [];
+    let lastId;
+
+    while (true) {
+      const fetched = await channel.messages.fetch({
+        limit: 100,
+        before: lastId,
+      });
+
+      if (fetched.size === 0) break;
+
+      allMessages.push(...Array.from(fetched.values()));
+      lastId = fetched.last().id;
+
+      if (allMessages.length >= 1000) break;
+    }
+
+    allMessages.sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+
+    const lines = allMessages.map((msg) => {
+      const time = new Date(msg.createdTimestamp).toLocaleString('hr-HR');
+      const author = `${msg.author.tag} (${msg.author.id})`;
+      const content = msg.content || '';
+      return `[${time}] ${author}: ${content}`;
+    });
+
+    const transcriptText =
+      lines.join('\n') || 'Nema poruka u ovom tiketu.';
+
+    const buffer = Buffer.from(transcriptText, 'utf-8');
+
+    await logChannel.send({
+      content: `📝 Transkript zatvorenog tiketa: ${channel.name}\nZatvorio: ${closedByUser.tag}`,
+      files: [{ attachment: buffer, name: `transkript-${channel.id}.txt` }],
+    });
+  } catch (err) {
+    console.error('Greška pri slanju transkripta:', err);
+  }
+}
 
 // ============== WELCOME + LOGGING ==============
 client.on('guildMemberAdd', async (member) => {
@@ -340,6 +538,34 @@ client.on('guildMemberAdd', async (member) => {
         .catch(() => {});
     }
   }
+});
+
+// ============== MESSAGE CREATE (tiketi: reminder + inactivity) ==============
+client.on('messageCreate', (message) => {
+  if (message.author.bot) return;
+
+  const channel = message.channel;
+
+  // ako je ovo tiket koji pratimo za inactivity → reset 48h timera
+  if (ticketInactivity.has(channel.id)) {
+    startTicketInactivity(channel);
+  }
+
+  // ako nema reminder za ovaj kanal, dalje nas ništa ne zanima
+  if (!ticketReminders.has(channel.id)) return;
+
+  const topic = channel.topic || '';
+  const match = topic.match(/Ticket owner:\s*(\d+)/i);
+  const ticketOwnerId = match ? match[1] : null;
+
+  if (!ticketOwnerId) return;
+  if (message.author.id !== ticketOwnerId) return;
+
+  // vlasnik tiketa je odgovorio → zaustavi reminder
+  stopTicketReminder(channel.id);
+
+  // po želji možeš poslati poruku useru:
+  // channel.send('Hvala na odgovorima! Neko iz tima će uskoro preuzeti tvoj tiket. 😊').catch(() => {});
 });
 
 // ============== SLASH KOMANDE + INTERAKCIJE ==============
@@ -444,6 +670,7 @@ client.on('interactionCreate', async (interaction) => {
       name: channelName,
       type: ChannelType.GuildText,
       parent: TICKET_CATEGORY_ID,
+      topic: `Ticket owner: ${member.id} | Type: ${type}`,
       permissionOverwrites: [
         {
           id: guild.roles.everyone,
@@ -466,7 +693,6 @@ client.on('interactionCreate', async (interaction) => {
           ],
         },
         {
-          // 🔹 pobrini se da BOT uvijek ima pristup ticket kanalu
           id: client.user.id,
           allow: [
             PermissionFlagsBits.ViewChannel,
@@ -539,6 +765,11 @@ client.on('interactionCreate', async (interaction) => {
       content: ticketMessage,
       components: [buttons],
     });
+
+    // pokreni automatski podsjetnik
+    startTicketReminder(channel, member.id);
+    // pokreni i 48h inactivity auto-close
+    startTicketInactivity(channel);
 
     await interaction.reply({
       content: `Tvoj ticket je otvoren: ${channel}`,
@@ -651,7 +882,7 @@ client.on('interactionCreate', async (interaction) => {
           .setLabel('Košnja djeteline')
           .setStyle(ButtonStyle.Primary),
         new ButtonBuilder()
-          .setCustomId('task_job_kombajniranje_modal') // kombajniranje ide na modal
+          .setCustomId('task_job_kombajniranje_modal')
           .setLabel('Kombajniranje')
           .setStyle(ButtonStyle.Success),
         new ButtonBuilder()
@@ -665,42 +896,42 @@ client.on('interactionCreate', async (interaction) => {
           .setCustomId('task_job_malciranje')
           .setLabel('Malčiranje')
           .setStyle(ButtonStyle.Primary),
-          new ButtonBuilder()
+        new ButtonBuilder()
           .setCustomId('task_job_spajanje')
           .setLabel('Spajanje polja')
           .setStyle(ButtonStyle.Primary),
-          new ButtonBuilder()
+        new ButtonBuilder()
           .setCustomId('task_job_baliranje')
           .setLabel('Baliranje')
           .setStyle(ButtonStyle.Primary),
-          new ButtonBuilder()
+        new ButtonBuilder()
           .setCustomId('task_job_skupljanje')
           .setLabel('Skupljanje u redove')
           .setStyle(ButtonStyle.Primary),
-          new ButtonBuilder()
+        new ButtonBuilder()
           .setCustomId('task_job_okretanje')
           .setLabel('Prevrtanje trave / djeteline')
           .setStyle(ButtonStyle.Primary)
       );
 
-    const jobsRow4 = new ActionRowBuilder().addComponents(
+      const jobsRow4 = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
           .setCustomId('task_job_zamotavanje')
           .setLabel('Zamotati bale za silažu')
           .setStyle(ButtonStyle.Primary),
-          new ButtonBuilder()
+        new ButtonBuilder()
           .setCustomId('task_job_zimska')
           .setLabel('Zimska brazda')
           .setStyle(ButtonStyle.Primary),
-          new ButtonBuilder()
+        new ButtonBuilder()
           .setCustomId('task_job_ceste')
           .setLabel('Čišćenje ceste')
           .setStyle(ButtonStyle.Primary),
-          new ButtonBuilder()
+        new ButtonBuilder()
           .setCustomId('task_job_rolanje')
           .setLabel('Rolanje polja')
-          .setStyle(ButtonStyle.Primary),
-          );
+          .setStyle(ButtonStyle.Primary)
+      );
 
       await interaction.update({
         embeds: [embed],
@@ -892,6 +1123,17 @@ client.on('interactionCreate', async (interaction) => {
         });
       }
 
+      // svaki put kad staff dira tiket, ugasi reminder i inactivity
+      stopTicketReminder(interaction.channel.id);
+      stopTicketInactivity(interaction.channel.id);
+
+      const channel = interaction.channel;
+      const guild = interaction.guild;
+
+      const topic = channel.topic || '';
+      const match = topic.match(/Ticket owner:\s*(\d+)/i);
+      const ticketOwnerId = match ? match[1] : null;
+
       if (interaction.customId === 'ticket_claim') {
         await interaction.reply({
           content: `✅ Ticket je preuzeo/la ${interaction.user}.`,
@@ -905,11 +1147,41 @@ client.on('interactionCreate', async (interaction) => {
           ephemeral: true,
         });
 
-        if (!interaction.channel.name.startsWith('closed-')) {
-          await interaction.channel.setName(
-            `closed-${interaction.channel.name}`
-          );
+        if (!channel.name.startsWith('closed-')) {
+          await channel.setName(`closed-${channel.name}`);
         }
+
+        await channel.permissionOverwrites.edit(guild.roles.everyone, {
+          SendMessages: false,
+          AddReactions: false,
+        });
+
+        if (ticketOwnerId) {
+          await channel.permissionOverwrites.edit(ticketOwnerId, {
+            SendMessages: false,
+            AddReactions: false,
+          });
+        }
+
+        if (SUPPORT_ROLE_ID) {
+          await channel.permissionOverwrites.edit(SUPPORT_ROLE_ID, {
+            ViewChannel: true,
+            SendMessages: true,
+            ReadMessageHistory: true,
+          });
+        }
+
+        await channel.permissionOverwrites.edit(client.user.id, {
+          ViewChannel: true,
+          SendMessages: true,
+          ReadMessageHistory: true,
+        });
+
+        await sendTicketTranscript(channel, interaction.user);
+
+        setTimeout(() => {
+          channel.delete().catch(() => {});
+        }, 10_000);
 
         return;
       }
