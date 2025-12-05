@@ -27,6 +27,10 @@
         <a href="/dashboard?tab=embeds" class="nav-item <%= activeTab === 'embeds' ? 'active' : '' %>">
           Embeds
         </a>
+        <!-- NOVO: Tickets tab -->
+        <a href="/dashboard?tab=tickets" class="nav-item <%= activeTab === 'tickets' ? 'active' : '' %>">
+          Tickets
+        </a>
       </nav>
     </aside>
 
@@ -55,7 +59,7 @@
           <section class="card">
             <h2>🎫 Ticket sistem</h2>
             <p>/ticket-panel se koristi za prikaz ticket embed-a u kanalu.</p>
-            <p>Svi tiketi idu u kategoriju ID: <code>TICKET_CATEGORY_ID</code> (iz koda).</p>
+            <p>Svi tiketi idu u kategoriju ID: <code>TICKET_CATEGORY_ID</code> (iz koda ili iz Tickets taba).</p>
             <p>Support role ID: <code><%= process.env.SUPPORT_ROLE_ID %></code></p>
           </section>
         </div>
@@ -288,7 +292,131 @@
       </section>
     </section>
   </div>
-<% } %>
+
+      <% } else if (activeTab === 'tickets') { 
+           const ts = config.ticketSystem || {};
+      %>
+        <h1>🎫 Ticket System – Postavke</h1>
+        <p class="subtitle">
+          Ovdje podešavaš kategoriju, log kanal, vremena za auto-close/reminder i pitanja za vrste tiketa.
+        </p>
+
+        <form action="/dashboard/tickets" method="post" class="form-card ticket-form">
+          <h2>Osnovno</h2>
+
+          <label>
+            Ticket kategorija (ID):
+            <input
+              type="text"
+              name="ticketCategoryId"
+              value="<%= ts.categoryId || '' %>"
+              placeholder="ID kategorije gdje idu tiketi"
+            />
+          </label>
+
+          <label>
+            Ticket log kanal (ID, transkripti):
+            <input
+              type="text"
+              name="ticketLogChannelId"
+              value="<%= ts.logChannelId || '' %>"
+              placeholder="ID kanala za transkripte (npr. 1234567890)"
+            />
+          </label>
+
+          <label>
+            Support rola (ID):
+            <input
+              type="text"
+              name="ticketSupportRoleId"
+              value="<%= ts.supportRoleId || '' %>"
+              placeholder="Ako ostaviš prazno, koristi se SUPPORT_ROLE_ID iz .env"
+            />
+          </label>
+
+          <div class="two-cols">
+            <label>
+              Auto-close nakon (sati):
+              <input
+                type="number"
+                name="autoCloseHours"
+                min="1"
+                value="<%= ts.autoCloseHours || 48 %>"
+              />
+            </label>
+
+            <label>
+              Reminder svakih (sati):
+              <input
+                type="number"
+                name="reminderHours"
+                min="1"
+                value="<%= ts.reminderHours || 3 %>"
+              />
+            </label>
+          </div>
+
+          <hr />
+
+          <h2>Pitanja po vrsti tiketa</h2>
+          <p class="help">
+            Svaki red = jedno pitanje. Bot će ih prikazati kao bullet listu u prvom message-u u tiketu.
+          </p>
+
+          <label>
+            Igranje na serveru – pitanja:
+            <textarea name="igranjeQuestions" rows="8"><%= 
+              ts.types && ts.types.igranje && ts.types.igranje.questions
+                ? ts.types.igranje.questions.join('\n')
+                : '' 
+            %></textarea>
+          </label>
+
+          <label>
+            Žalba na igrače – pitanja:
+            <textarea name="zalbaQuestions" rows="6"><%= 
+              ts.types && ts.types.zalba && ts.types.zalba.questions
+                ? ts.types.zalba.questions.join('\n')
+                : '' 
+            %></textarea>
+          </label>
+
+          <label>
+            Edit modova – pitanja:
+            <textarea name="modoviQuestions" rows="6"><%= 
+              ts.types && ts.types.modovi && ts.types.modovi.questions
+                ? ts.types.modovi.questions.join('\n')
+                : '' 
+            %></textarea>
+          </label>
+
+          <hr />
+
+          <h2>Poruke</h2>
+
+          <label>
+            Reminder poruka (šalje se svakih X sati ako user ne odgovori):<br />
+            <small>Koristi <code>{user}</code> za mention korisnika.</small>
+            <textarea name="reminderMessage" rows="5"><%= 
+              ts.messages && ts.messages.reminder
+                ? ts.messages.reminder
+                : '' 
+            %></textarea>
+          </label>
+
+          <label>
+            Auto-close poruka (šalje se kad bot automatski zatvori ticket nakon neaktivnosti):
+            <textarea name="autoCloseMessage" rows="5"><%= 
+              ts.messages && ts.messages.autoClose
+                ? ts.messages.autoClose
+                : '' 
+            %></textarea>
+          </label>
+
+          <button type="submit" class="btn-primary">Spremi ticket postavke</button>
+        </form>
+
+      <% } %>
 
     </main>
   </div>
@@ -333,88 +461,105 @@
   }
 
   function updateEmbedPreview() {
+    if (!embedPreview) return;
+
     // naslov + opis
-    previewTitle.textContent =
-      titleInput.value || 'Naslov embed-a';
-    previewDescription.textContent =
-      descInput.value || 'Ovdje će se prikazati opis embed poruke.';
+    if (previewTitle) {
+      previewTitle.textContent =
+        (titleInput && titleInput.value) || 'Naslov embed-a';
+    }
+    if (previewDescription) {
+      previewDescription.textContent =
+        (descInput && descInput.value) || 'Ovdje će se prikazati opis embed poruke.';
+    }
 
     // boja
-    embedPreview.style.borderLeftColor =
-      safeHex(colorInput.value || '#00b0f4', '#00b0f4');
+    if (embedPreview && colorInput) {
+      embedPreview.style.borderLeftColor =
+        safeHex(colorInput.value || '#00b0f4', '#00b0f4');
+    }
 
     // author
-    const aName = authorNameInput.value.trim();
-    const aIcon = authorIconInput.value.trim();
-    if (aName || aIcon) {
-      previewAuthor.style.display = 'flex';
-      previewAuthorName.textContent = aName || '';
-      if (aIcon) {
-        previewAuthorIcon.style.display = 'block';
-        previewAuthorIcon.src = aIcon;
+    if (previewAuthor && previewAuthorName && previewAuthorIcon) {
+      const aName = authorNameInput ? authorNameInput.value.trim() : '';
+      const aIcon = authorIconInput ? authorIconInput.value.trim() : '';
+      if (aName || aIcon) {
+        previewAuthor.style.display = 'flex';
+        previewAuthorName.textContent = aName || '';
+        if (aIcon) {
+          previewAuthorIcon.style.display = 'block';
+          previewAuthorIcon.src = aIcon;
+        } else {
+          previewAuthorIcon.style.display = 'none';
+        }
       } else {
-        previewAuthorIcon.style.display = 'none';
+        previewAuthor.style.display = 'none';
       }
-    } else {
-      previewAuthor.style.display = 'none';
     }
 
     // thumbnail
-    const tUrl = thumbInput.value.trim();
-    if (tUrl) {
-      previewThumbnail.style.display = 'block';
-      previewThumbnail.src = tUrl;
-    } else {
-      previewThumbnail.style.display = 'none';
+    if (previewThumbnail && thumbInput) {
+      const tUrl = thumbInput.value.trim();
+      if (tUrl) {
+        previewThumbnail.style.display = 'block';
+        previewThumbnail.src = tUrl;
+      } else {
+        previewThumbnail.style.display = 'none';
+      }
     }
 
     // velika slika
-    const iUrl = imageInput.value.trim();
-    if (iUrl) {
-      previewImage.style.display = 'block';
-      previewImage.src = iUrl;
-    } else {
-      previewImage.style.display = 'none';
+    if (previewImage && imageInput) {
+      const iUrl = imageInput.value.trim();
+      if (iUrl) {
+        previewImage.style.display = 'block';
+        previewImage.src = iUrl;
+      } else {
+        previewImage.style.display = 'none';
+      }
     }
 
     // footer + timestamp
-    const fText = footerTextInput.value.trim();
-    const fIcon = footerIconInput.value.trim();
-    const showTs = timestampInput.checked;
+    if (previewFooter && previewFooterText && previewFooterIcon && previewTimestamp && timestampInput) {
+      const fText = footerTextInput ? footerTextInput.value.trim() : '';
+      const fIcon = footerIconInput ? footerIconInput.value.trim() : '';
+      const showTs = timestampInput.checked;
 
-    if (fText || fIcon || showTs) {
-      previewFooter.style.display = 'flex';
-      previewFooterText.textContent = fText || '';
+      if (fText || fIcon || showTs) {
+        previewFooter.style.display = 'flex';
+        previewFooterText.textContent = fText || '';
 
-      if (fIcon) {
-        previewFooterIcon.style.display = 'block';
-        previewFooterIcon.src = fIcon;
+        if (fIcon) {
+          previewFooterIcon.style.display = 'block';
+          previewFooterIcon.src = fIcon;
+        } else {
+          previewFooterIcon.style.display = 'none';
+        }
+
+        if (showTs) {
+          const now = new Date();
+          previewTimestamp.textContent =
+            ' • ' + now.toLocaleDateString() + ' ' + now.toLocaleTimeString();
+        } else {
+          previewTimestamp.textContent = '';
+        }
       } else {
-        previewFooterIcon.style.display = 'none';
+        previewFooter.style.display = 'none';
       }
-
-      if (showTs) {
-        const now = new Date();
-        previewTimestamp.textContent =
-          ' • ' + now.toLocaleDateString() + ' ' + now.toLocaleTimeString();
-      } else {
-        previewTimestamp.textContent = '';
-      }
-    } else {
-      previewFooter.style.display = 'none';
     }
   }
 
-  // event listeneri za sve inpute
-  [
+  const inputsForPreview = [
     titleInput, descInput, colorInput,
     authorNameInput, authorIconInput,
     footerTextInput, footerIconInput,
     thumbInput, imageInput, timestampInput
-  ].forEach(el => el && el.addEventListener('input', updateEmbedPreview));
+  ].filter(Boolean);
+
+  inputsForPreview.forEach(el => el.addEventListener('input', updateEmbedPreview));
 
   // sync: color picker → text input
-  if (colorPicker) {
+  if (colorPicker && colorInput) {
     colorPicker.addEventListener('input', () => {
       colorInput.value = colorPicker.value;
       updateEmbedPreview();
@@ -422,25 +567,23 @@
   }
 
   // sync: text input → color picker
-if (colorInput) {
-  colorInput.addEventListener('input', () => {
-    const v = safeHex(colorInput.value || '#00b0f4', '#00b0f4');
-    colorPicker.value = v;
-  });
-}
+  if (colorInput && colorPicker) {
+    colorInput.addEventListener('input', () => {
+      const v = safeHex(colorInput.value || '#00b0f4', '#00b0f4');
+      colorPicker.value = v;
+    });
+  }
 
-// toggle prikaz boja
-const toggleColorPickerBtn = document.getElementById('toggleColorPicker');
-const colorPickerRow = document.getElementById('colorPickerRow');
+  // toggle prikaz boja
+  const toggleColorPickerBtn = document.getElementById('toggleColorPicker');
+  const colorPickerRow = document.getElementById('colorPickerRow');
 
-if (toggleColorPickerBtn && colorPickerRow) {
-  toggleColorPickerBtn.addEventListener('click', () => {
-    colorPickerRow.style.display =
-      colorPickerRow.style.display === 'none' ? 'flex' : 'none';
-  });
-}
-
-
+  if (toggleColorPickerBtn && colorPickerRow) {
+    toggleColorPickerBtn.addEventListener('click', () => {
+      colorPickerRow.style.display =
+        colorPickerRow.style.display === 'none' ? 'flex' : 'none';
+    });
+  }
 
   updateEmbedPreview();
 </script>
