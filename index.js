@@ -27,6 +27,9 @@ const clientId = process.env.CLIENT_ID;
 const guildId = process.env.GUILD_ID?.trim();
 
 const SUPPORT_ROLE_ID = process.env.SUPPORT_ROLE_ID; // rola za support
+// secret za Farming Server webhooks
+const FS_WEBHOOK_SECRET = process.env.FS_WEBHOOK_SECRET;
+
 
 // =====================
 //  "DB" PREKO JSON FAJLA (za dashboard: welcome/logging/embeds/tickets)
@@ -207,6 +210,10 @@ app.set('views', path.join(__dirname, 'views'));
 
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.urlencoded({ extended: true }));
+
+// za JSON body (webhookovi s FS servera)
+app.use(express.json());
+
 
 app.use(
   session({
@@ -456,9 +463,71 @@ app.post('/dashboard/tickets', (req, res) => {
   res.redirect('/dashboard?tab=tickets');
 });
 
+// =====================
+//  FS WEBHOOK – helper za provjeru secreta
+// =====================
+function checkFsSecret(req, res) {
+  const sent =
+    req.headers['x-fs-secret'] ||
+    req.headers['x-fs25-secret'] ||
+    (req.body && req.body.secret);
+
+  if (!FS_WEBHOOK_SECRET) {
+    console.warn('⚠️ FS_WEBHOOK_SECRET nije postavljen u .env – odbijam zahtjev.');
+    res.status(500).json({ ok: false, error: 'secret_not_configured' });
+    return false;
+  }
+
+  if (!sent || sent !== FS_WEBHOOK_SECRET) {
+    console.warn('⚠️ Neispravan FS webhook secret:', sent);
+    res.status(401).json({ ok: false, error: 'unauthorized' });
+    return false;
+  }
+
+  return true;
+}
+
+
+// =====================
+//  FS WEBHOOK – test ruta
+// =====================
+app.post('/fs/test', (req, res) => {
+  if (!checkFsSecret(req, res)) return;
+
+  console.log('🔗 [FS TEST] Primljen payload:', req.body);
+
+  // možeš po želji ovo slati u neki Discord kanal:
+  // npr. logChannel.send('Stigao FS test webhook: ...');
+
+  res.json({ ok: true, received: req.body });
+});
+
+// =====================
+//  FS WEBHOOK – field update (za kasnije povezivanje s taskovima)
+// =====================
+app.post('/fs/field-update', (req, res) => {
+  if (!checkFsSecret(req, res)) return;
+
+  const payload = req.body || {};
+  console.log('🌾 [FS FIELD UPDATE] Primljen payload:', payload);
+
+  // Ovdje će kasnije ići logika:
+  // - payload.field  -> npr. "17"
+  // - payload.status -> npr. "harvested"
+  // - payload.crop   -> npr. "wheat"
+  // - payload.player -> npr. "NekoIme"
+  //
+  // 1) nađi aktivni Discord task za to polje
+  // 2) označi ga kao završen (kao da je kliknut gumb task_done)
+  // 3) prebaci embed u kanal za završene poslove
+
+  res.json({ ok: true });
+});
+
 app.listen(PORT, () => {
   console.log(`🌐 Dashboard listening on port ${PORT}`);
 });
+
 
 // =====================
 //  DISCORD BOT DIO
