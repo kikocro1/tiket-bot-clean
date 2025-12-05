@@ -991,7 +991,7 @@ client.on('interactionCreate', async (interaction) => {
       const doneRow = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
           .setCustomId('task_done')
-          .setLabel('✅ Zadatak završen')
+          .setLabel('✅ Završi zadatak')
           .setStyle(ButtonStyle.Success)
       );
 
