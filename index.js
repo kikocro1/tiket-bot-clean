@@ -112,12 +112,12 @@ function getDefaultData() {
       channelId: '',
     },
     embeds: [],
-    // ticket sistem
     ticketSystem: JSON.parse(JSON.stringify(DEFAULT_TICKET_SYSTEM)),
-    // farming polja (za task-panel)
-    farmingFields: [...DEFAULT_FARMING_FIELDS],
+    // 🔹 ovdje ćemo spremati aktivne FS zadatke (da ih možemo naći po polju)
+    farmingTasks: [],
   };
 }
+
 
 function loadDb() {
   try {
@@ -503,26 +503,112 @@ app.post('/fs/test', (req, res) => {
 });
 
 // =====================
-//  FS WEBHOOK – field update (za kasnije povezivanje s taskovima)
+//  FS WEBHOOK – field update (auto završavanje posla)
 // =====================
-app.post('/fs/field-update', (req, res) => {
+app.post('/fs/field-update', async (req, res) => {
   if (!checkFsSecret(req, res)) return;
 
   const payload = req.body || {};
-  console.log('🌾 [FS FIELD UPDATE] Primljen payload:', payload);
+  const field = String(payload.field || '').trim();
+  const status = String(payload.status || '').toLowerCase();
+  const jobNameFromFs = payload.job || 'Posao iz FS-a';
+  const finishedBy = payload.player || 'FS Server';
 
-  // Ovdje će kasnije ići logika:
-  // - payload.field  -> npr. "17"
-  // - payload.status -> npr. "harvested"
-  // - payload.crop   -> npr. "wheat"
-  // - payload.player -> npr. "NekoIme"
-  //
-  // 1) nađi aktivni Discord task za to polje
-  // 2) označi ga kao završen (kao da je kliknut gumb task_done)
-  // 3) prebaci embed u kanal za završene poslove
+  console.log('🌾 [FS FIELD UPDATE]', payload);
 
-  res.json({ ok: true });
+  if (!field) {
+    return res.status(400).json({ ok: false, error: 'missing_field' });
+  }
+
+  // koji statusi znače da je posao završen
+  const FINISHED_STATUSES = ['finished', 'done', 'harvested', 'completed'];
+
+  if (!FINISHED_STATUSES.includes(status)) {
+    // zasad samo ignoriramo ostale statuse
+    return res.json({ ok: true, ignored: true, reason: 'status_not_finished' });
+  }
+
+  try {
+    // kanali
+    const jobChannel = await client.channels
+      .fetch(FS_JOB_CHANNEL_ID)
+      .catch(() => null);
+    const doneChannel = await client.channels
+      .fetch(FS_JOB_DONE_CHANNEL_ID)
+      .catch(() => null);
+
+    if (!jobChannel || !doneChannel) {
+      console.warn('⚠️ FS job/done kanal nije pronađen');
+      return res.status(500).json({ ok: false, error: 'channels_not_found' });
+    }
+
+    // 1) probaj naći postojeći embed za ovo polje u kanalu za poslove
+    const messages = await jobChannel.messages.fetch({ limit: 50 });
+    let targetMessage = null;
+    let targetEmbed = null;
+
+    for (const msg of messages.values()) {
+      if (!msg.embeds || !msg.embeds[0]) continue;
+      const emb = msg.embeds[0];
+
+      const hasField = emb.fields?.some(
+        (f) =>
+          typeof f.value === 'string' &&
+          f.value.toLowerCase().includes(`polje ${field}`.toLowerCase())
+      );
+
+      if (hasField) {
+        targetMessage = msg;
+        targetEmbed = emb;
+        break;
+      }
+    }
+
+    // 2a) ako smo našli aktivni posao → označi kao završen
+    if (targetMessage && targetEmbed) {
+      const finishedEmbed = EmbedBuilder.from(targetEmbed)
+        .setColor('#ff0000')
+        .setTitle('✅ Zadatak završen (FS)')
+        .setFooter({
+          text: 'Označeno kao završeno od strane: ' + finishedBy,
+        })
+        .setTimestamp();
+
+      await doneChannel.send({ embeds: [finishedEmbed] });
+      await targetMessage.delete().catch(() => {});
+
+      console.log(
+        `✅ FS: Zadatak za polje ${field} automatski označen kao završen.`
+      );
+
+      return res.json({ ok: true, finished: true, mode: 'existing_task' });
+    }
+
+    // 2b) ako nema aktivnog posla → kreiraj direktno završeni zadatak
+    const newEmbed = new EmbedBuilder()
+      .setColor('#ff0000')
+      .setTitle('✅ Zadatak (auto iz FS)')
+      .addFields(
+        { name: 'Polje', value: `Polje ${field}`, inline: true },
+        { name: 'Posao', value: jobNameFromFs, inline: true },
+        { name: 'Završio', value: finishedBy, inline: true }
+      )
+      .setTimestamp();
+
+    await doneChannel.send({ embeds: [newEmbed] });
+
+    console.log(
+      `✅ FS: Nije pronađen aktivni zadatak za polje ${field}, kreiran novi "završen" zadatak.`
+    );
+
+    return res.json({ ok: true, finished: true, mode: 'new_done_task' });
+  } catch (err) {
+    console.error('❌ Greška u /fs/field-update:', err);
+    return res.status(500).json({ ok: false, error: 'internal_error' });
+  }
 });
+
+
 
 app.listen(PORT, () => {
   console.log(`🌐 Dashboard listening on port ${PORT}`);
@@ -816,6 +902,147 @@ client.on('messageCreate', (message) => {
   // vlasnik tiketa je odgovorio → zaustavi reminder
   stopTicketReminder(channel.id);
 });
+
+// =====================
+//  FS – pomoćne funkcije za zadatke
+// =====================
+
+// spremi / update jednog zadatka u db.json
+function saveFarmingTask(record) {
+  const data = loadDb();
+  if (!Array.isArray(data.farmingTasks)) data.farmingTasks = [];
+
+  // ako već postoji isti messageId → update
+  const idx = data.farmingTasks.findIndex(
+    (t) => t.messageId === record.messageId
+  );
+
+  if (idx !== -1) {
+    data.farmingTasks[idx] = { ...data.farmingTasks[idx], ...record };
+  } else {
+    data.farmingTasks.push(record);
+  }
+
+  saveDb(data);
+}
+
+// pronađi zadatak po polju koji je još "open"
+function findOpenTaskByField(field) {
+  const data = loadDb();
+  if (!Array.isArray(data.farmingTasks)) return null;
+
+  // tražimo od kraja (najnoviji)
+  for (let i = data.farmingTasks.length - 1; i >= 0; i--) {
+    const t = data.farmingTasks[i];
+    if (t.field === field && t.status === 'open') return t;
+  }
+  return null;
+}
+
+// označi zadatak kao završen + prebaci embed u "završene poslove"
+async function finishTaskFromFsUpdate(field, payload) {
+  const task = findOpenTaskByField(field);
+  const finishedBy = payload.player || 'FS Server';
+  const status = payload.status || 'finished';
+  const jobFromFs = payload.job || null;
+
+  // dohvatimo guild (tvoj glavni)
+  const guild = await client.guilds.fetch(guildId).catch(() => null);
+  if (!guild) return false;
+
+  // ako nema spremljenog zadatka za ovo polje
+  if (!task) {
+    // ✅ kako si tražio: ako ne postoji zadatak, automatski ga kreiramo
+    const jobName = jobFromFs || `Posao sa FS (${status})`;
+
+    const embed = new EmbedBuilder()
+      .setColor('#00a84d')
+      .setTitle('✅ Novi zadatak (auto iz FS)')
+      .addFields(
+        { name: 'Polje', value: `Polje ${field}`, inline: true },
+        { name: 'Posao', value: jobName, inline: true },
+        { name: 'Izvor', value: 'FS Server', inline: true }
+      )
+      .setTimestamp();
+
+    const doneRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('task_done')
+        .setLabel('✅ Zadatak završen')
+        .setStyle(ButtonStyle.Success)
+    );
+
+    const jobChannel = await client.channels
+      .fetch(FS_JOB_CHANNEL_ID)
+      .catch(() => null);
+    const doneChannel = await client.channels
+      .fetch(FS_JOB_DONE_CHANNEL_ID)
+      .catch(() => null);
+
+    if (!jobChannel || !doneChannel) return false;
+
+    // odmah ga šaljemo kao *završen* u done kanal
+    const msg = await doneChannel.send({ embeds: [embed] });
+
+    saveFarmingTask({
+      field,
+      jobName,
+      status: 'done',
+      fromFs: true,
+      channelId: doneChannel.id,
+      messageId: msg.id,
+      createdBy: null,
+      createdAt: new Date().toISOString(),
+      finishedBy,
+      finishedAt: new Date().toISOString(),
+    });
+
+    return true;
+  }
+
+  // imamo otvoreni zadatak u kanalu za poslove → dohvatimo stari embed
+  const jobChannel = await client.channels
+    .fetch(task.channelId || FS_JOB_CHANNEL_ID)
+    .catch(() => null);
+  const doneChannel = await client.channels
+    .fetch(FS_JOB_DONE_CHANNEL_ID)
+    .catch(() => null);
+
+  if (!jobChannel || !doneChannel) return false;
+
+  const msg = await jobChannel.messages
+    .fetch(task.messageId)
+    .catch(() => null);
+  if (!msg || !msg.embeds[0]) return false;
+
+  const oldEmbed = msg.embeds[0];
+
+  const finishedEmbed = EmbedBuilder.from(oldEmbed)
+    .setColor('#ff0000')
+    .setTitle('✅ Zadatak završen (FS)')
+    .setFooter({
+      text: 'Označeno kao završeno od strane: ' + finishedBy,
+    });
+
+  await doneChannel.send({ embeds: [finishedEmbed] });
+  await msg.delete().catch(() => {});
+
+  // update u db
+  const data = loadDb();
+  if (!Array.isArray(data.farmingTasks)) data.farmingTasks = [];
+  const idx = data.farmingTasks.findIndex(
+    (t) => t.messageId === task.messageId
+  );
+  if (idx !== -1) {
+    data.farmingTasks[idx].status = 'done';
+    data.farmingTasks[idx].finishedBy = finishedBy;
+    data.farmingTasks[idx].finishedAt = new Date().toISOString();
+    saveDb(data);
+  }
+
+  return true;
+}
+
 
 // ============== SLASH KOMANDE + INTERAKCIJE ==============
 client.on('interactionCreate', async (interaction) => {
@@ -1420,13 +1647,27 @@ client.on('interactionCreate', async (interaction) => {
         ephemeral: true,
       });
 
-      await jobChannel.send({
-        embeds: [embed],
-        components: [doneRow],
-      });
+      const sentMsg = await jobChannel.send({
+  embeds: [embed],
+  components: [doneRow],
+});
 
-      activeTasks.delete(interaction.user.id);
-      return;
+// spremimo u "farmingTasks"
+saveFarmingTask({
+  field: current.field,
+  jobKey,
+  jobName,
+  status: 'open',
+  fromFs: false,
+  channelId: jobChannel.id,
+  messageId: sentMsg.id,
+  createdBy: interaction.user.id,
+  createdAt: new Date().toISOString(),
+});
+
+activeTasks.delete(interaction.user.id);
+return;
+
     }
 
     // === FARMING: Sijanje – otvaranje modala ===
@@ -1683,13 +1924,26 @@ client.on('interactionCreate', async (interaction) => {
         ephemeral: true,
       });
 
-      await jobChannel.send({
-        embeds: [embed],
-        components: [doneRow],
-      });
+      const sentMsg = await jobChannel.send({
+  embeds: [embed],
+  components: [doneRow],
+});
 
-      activeTasks.delete(interaction.user.id);
-      return;
+saveFarmingTask({
+  field: current.field,
+  jobKey: interaction.customId === 'task_sowing_modal' ? 'sijanje' : 'kombajniranje',
+  jobName: interaction.customId === 'task_sowing_modal' ? 'Sijanje' : 'Kombajniranje',
+  status: 'open',
+  fromFs: false,
+  channelId: jobChannel.id,
+  messageId: sentMsg.id,
+  createdBy: interaction.user.id,
+  createdAt: new Date().toISOString(),
+});
+
+activeTasks.delete(interaction.user.id);
+return;
+
     }
 
     // Kombajniranje
