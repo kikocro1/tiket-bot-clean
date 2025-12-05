@@ -481,7 +481,7 @@ function startTicketReminder(channel, userId) {
   stopTicketReminder(channel.id);
 
   const cfg = getTicketConfig();
-  const intervalMs = (cfg.reminderHours || 3) * 60 * 60 * 1000;
+  const intervalMs = (cfg.reminderHours || 5) * 60 * 1000;
 
   const intervalId = setInterval(async () => {
     try {
