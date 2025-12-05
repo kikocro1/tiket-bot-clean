@@ -40,7 +40,7 @@ const DEFAULT_TICKET_SYSTEM = {
   categoryId: '',                 // kategorija za tikete
   supportRoleId: '',              // support rola (ako želiš override env-a)
   autoCloseHours: 48,             // nakon koliko sati neaktivnosti se auto zatvara
-  reminderHours: 3,               // svakih koliko sati ide podsjetnik
+  reminderHours: 3,               // svakih koliko MINUTA ide podsjetnik (mi ćemo ga tretirati kao minute)
   types: {
     igranje: {
       title: 'Igranje na serveru',
@@ -83,6 +83,22 @@ const DEFAULT_TICKET_SYSTEM = {
   },
 };
 
+// 🔹 default polja za Farming zadatke (prebacujemo iz koda u db.json)
+const DEFAULT_FARMING_FIELDS = [
+  '5',
+  '16',
+  '17',
+  '33',
+  '34',
+  '35',
+  '36',
+  '37',
+  '6-7-8-11',
+  '30-31',
+  '2-3',
+  '24-23',
+];
+
 function getDefaultData() {
   return {
     welcome: {
@@ -93,8 +109,10 @@ function getDefaultData() {
       channelId: '',
     },
     embeds: [],
-    // NOVO: ticketSystem blok
+    // ticket sistem
     ticketSystem: JSON.parse(JSON.stringify(DEFAULT_TICKET_SYSTEM)),
+    // farming polja (za task-panel)
+    farmingFields: [...DEFAULT_FARMING_FIELDS],
   };
 }
 
@@ -155,6 +173,23 @@ function getTicketConfig() {
   };
 
   return merged;
+}
+
+// helper: vraća listu polja za Farming zadatke
+function getFarmingFields() {
+  const data = loadDb();
+  const arr = data.farmingFields;
+  if (Array.isArray(arr) && arr.length) {
+    return arr.map(String);
+  }
+  return [...DEFAULT_FARMING_FIELDS];
+}
+
+// helper: spremi polja u db.json
+function saveFarmingFields(fields) {
+  const data = loadDb();
+  data.farmingFields = Array.from(new Set(fields.map(String)));
+  saveDb(data);
 }
 
 // inicijaliziraj db.json ako ne postoji
@@ -481,7 +516,8 @@ function startTicketReminder(channel, userId) {
   stopTicketReminder(channel.id);
 
   const cfg = getTicketConfig();
-  const intervalMs = (cfg.reminderHours || 3) * 60 * 60 * 1000;
+  // reminderHours sada tretiramo kao MINUTE
+  const intervalMs = (cfg.reminderHours || 3) * 60 * 1000;
 
   const intervalId = setInterval(async () => {
     try {
@@ -797,6 +833,117 @@ client.on('interactionCreate', async (interaction) => {
       const channel = interaction.channel;
       await channel.send({ embeds: [embed], components: [row] });
     }
+
+    // /add-field value:<string>
+    if (interaction.commandName === 'add-field') {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
+        return interaction.reply({
+          content: '⛔ Samo staff/admin može dodavati nova polja.',
+          ephemeral: true,
+        });
+      }
+
+      const value = interaction.options.getString('value', true).trim();
+
+      if (!value) {
+        return interaction.reply({
+          content: '⚠️ Moraš upisati oznaku polja (npr. `56-276`).',
+          ephemeral: true,
+        });
+      }
+
+      const fields = getFarmingFields();
+      if (fields.includes(value)) {
+        return interaction.reply({
+          content: `⚠️ Polje **${value}** već postoji u listi.`,
+          ephemeral: true,
+        });
+      }
+
+      fields.push(value);
+      saveFarmingFields(fields);
+
+      return interaction.reply({
+        content: `✅ Polje **${value}** je dodano u listu. Dostupno je u task-panelu.`,
+        ephemeral: true,
+      });
+    }
+
+    // /remove-field value:<string>
+    if (interaction.commandName === 'remove-field') {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
+        return interaction.reply({
+          content: '⛔ Samo staff/admin može brisati polja.',
+          ephemeral: true,
+        });
+      }
+
+      const value = interaction.options.getString('value', true).trim();
+      const fields = getFarmingFields();
+      const index = fields.indexOf(value);
+
+      if (index === -1) {
+        return interaction.reply({
+          content: `⚠️ Polje **${value}** nije pronađeno u listi.`,
+          ephemeral: true,
+        });
+      }
+
+      fields.splice(index, 1);
+      saveFarmingFields(fields);
+
+      return interaction.reply({
+        content: `🗑️ Polje **${value}** je uklonjeno iz liste.`,
+        ephemeral: true,
+      });
+    }
+
+    // /list-fields
+    if (interaction.commandName === 'list-fields') {
+      const fields = getFarmingFields();
+
+      if (!fields.length) {
+        return interaction.reply({
+          content: 'Lista polja je trenutno prazna.',
+          ephemeral: true,
+        });
+      }
+
+      return interaction.reply({
+        content:
+          '📋 Trenutna polja za Farming zadatke:\n' +
+          fields.map((f) => `• ${f}`).join('\n'),
+        ephemeral: true,
+      });
+    }
+
+    // /field-panel – poruka s gumbom za dodavanje polja
+    if (interaction.commandName === 'field-panel') {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
+        return interaction.reply({
+          content: '⛔ Samo staff/admin može postaviti ovaj panel.',
+          ephemeral: true,
+        });
+      }
+
+      const embed = new EmbedBuilder()
+        .setColor('#3ba55d')
+        .setTitle('🧑‍🌾 Upravljanje poljima')
+        .setDescription(
+          'Ovdje možeš dodati nova polja za Farming zadatke.\n\n' +
+          'Klikni na gumb ispod, unesi oznaku polja (npr. `56-276`) i bot će ga spremiti.\n' +
+          'Ta polja se automatski koriste u **task-panel** sistemu.'
+        );
+
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('field_add_button')
+          .setLabel('➕ Dodaj novo polje')
+          .setStyle(ButtonStyle.Success)
+      );
+
+      await interaction.reply({ embeds: [embed], components: [row] });
+    }
   }
 
   // ---------- KREIRANJE TIKETA (dropdown) ----------
@@ -964,24 +1111,39 @@ client.on('interactionCreate', async (interaction) => {
 
   // ---------- BUTTONI (TICKETI + FARMING) ----------
   if (interaction.isButton()) {
+    // === FARMING: dugme za dodavanje polja (iz field-panel poruke) ===
+    if (interaction.customId === 'field_add_button') {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
+        return interaction.reply({
+          content: '⛔ Samo staff/admin može dodavati polja.',
+          ephemeral: true,
+        });
+      }
+
+      const modal = new ModalBuilder()
+        .setCustomId('field_add_modal')
+        .setTitle('Dodavanje novog polja');
+
+      const input = new TextInputBuilder()
+        .setCustomId('field_value')
+        .setLabel('Oznaka polja (npr. 56-276)')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true)
+        .setMaxLength(50);
+
+      const row = new ActionRowBuilder().addComponents(input);
+      modal.addComponents(row);
+
+      await interaction.showModal(modal);
+      return;
+    }
+
     // === FARMING: START KREIRANJA POSLA ===
     if (interaction.customId === 'task_start') {
       activeTasks.set(interaction.user.id, { field: null });
 
-      const FIELDS = [
-        '5',
-        '16',
-        '17',
-        '33',
-        '34',
-        '35',
-        '36',
-        '37',
-        '6-7-8-11',
-        '30-31',
-        '2-3',
-        '24-23'
-      ];
+      // polja sada dolaze iz db.json
+      const FIELDS = getFarmingFields();
 
       const perRow = 5;
       const rows = [];
@@ -1333,19 +1495,19 @@ client.on('interactionCreate', async (interaction) => {
         });
 
         if (!channel.name.startsWith('closed-')) {
-          await channel.setName(`closed-${channel.name}`);
+          await channel.setName(`closed-${channel.name}`).catch(() => {});
         }
 
         await channel.permissionOverwrites.edit(guild.roles.everyone, {
           SendMessages: false,
           AddReactions: false,
-        });
+        }).catch(() => {});
 
         if (ticketOwnerId) {
           await channel.permissionOverwrites.edit(ticketOwnerId, {
             SendMessages: false,
             AddReactions: false,
-          });
+          }).catch(() => {});
         }
 
         if (SUPPORT_ROLE_ID) {
@@ -1353,14 +1515,14 @@ client.on('interactionCreate', async (interaction) => {
             ViewChannel: true,
             SendMessages: true,
             ReadMessageHistory: true,
-          });
+          }).catch(() => {});
         }
 
         await channel.permissionOverwrites.edit(client.user.id, {
           ViewChannel: true,
           SendMessages: true,
           ReadMessageHistory: true,
-        });
+        }).catch(() => {});
 
         await sendTicketTranscript(channel, interaction.user);
 
@@ -1373,8 +1535,43 @@ client.on('interactionCreate', async (interaction) => {
     }
   }
 
-  // ---------- MODALI (SIJANJE + KOMBAJNIRANJE) ----------
+  // ---------- MODALI (FIELD ADD + SIJANJE + KOMBAJNIRANJE) ----------
   if (interaction.isModalSubmit()) {
+    // Dodavanje novog polja
+    if (interaction.customId === 'field_add_modal') {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
+        return interaction.reply({
+          content: '⛔ Samo staff/admin može dodavati polja.',
+          ephemeral: true,
+        });
+      }
+
+      const value = interaction.fields.getTextInputValue('field_value').trim();
+
+      if (!value) {
+        return interaction.reply({
+          content: '⚠️ Moraš upisati oznaku polja.',
+          ephemeral: true,
+        });
+      }
+
+      const fields = getFarmingFields();
+      if (fields.includes(value)) {
+        return interaction.reply({
+          content: `⚠️ Polje **${value}** već postoji u listi.`,
+          ephemeral: true,
+        });
+      }
+
+      fields.push(value);
+      saveFarmingFields(fields);
+
+      return interaction.reply({
+        content: `✅ Polje **${value}** je dodano u listu. Dostupno je u task-panelu.`,
+        ephemeral: true,
+      });
+    }
+
     // Sijanje
     if (interaction.customId === 'task_sowing_modal') {
       const current = activeTasks.get(interaction.user.id);
