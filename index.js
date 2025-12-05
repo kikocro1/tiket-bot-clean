@@ -29,10 +29,59 @@ const guildId = process.env.GUILD_ID?.trim();
 const SUPPORT_ROLE_ID = process.env.SUPPORT_ROLE_ID; // rola za support
 
 // =====================
-//  "DB" PREKO JSON FAJLA (za dashboard: welcome/logging/embeds)
+//  "DB" PREKO JSON FAJLA (za dashboard: welcome/logging/embeds/tickets)
 // =====================
 
 const dbFile = path.join(__dirname, 'db.json');
+
+// default postavke za ticket sistem (za dashboard)
+const DEFAULT_TICKET_SYSTEM = {
+  logChannelId: '',               // gdje idu transkripti
+  categoryId: '',                 // kategorija za tikete
+  supportRoleId: '',              // support rola (ako želiš override env-a)
+  autoCloseHours: 48,             // nakon koliko sati neaktivnosti se auto zatvara
+  reminderHours: 3,               // svakih koliko sati ide podsjetnik
+  types: {
+    igranje: {
+      title: 'Igranje na serveru',
+      questions: [
+        'Koliko često planiraš da igraš na serveru?',
+        'U koje vrijeme si najčešće aktivan?',
+        'Da li si spreman da poštuješ raspored i obaveze na farmi?',
+        'Kako bi reagovao ako neko iz tima ne poštuje dogovor ili pravila igre?',
+        'Da li koristiš voice chat (Discord) tokom igre?',
+        'Da li si spreman da pomogneš drugim igračima?',
+        'Zašto želiš da igraš baš na hard serveru?',
+      ],
+    },
+    zalba: {
+      title: 'Žalba na igrače',
+      questions: [
+        'Ime igrača na kojeg se žališ?',
+        'Vrijeme i detaljan opis situacije?',
+        'Imaš li dokaze (slike, video, log)?',
+      ],
+    },
+    modovi: {
+      title: 'Edit modova',
+      questions: [
+        'Na čemu trenutno radiš?',
+        'Koji je konkretan problem?',
+        'Koji editor / verziju igre koristiš?',
+      ],
+    },
+  },
+  messages: {
+    reminder:
+      'Hej {user}! 😊\n' +
+      'Još uvijek nisi odgovorio na pitanja iz prve poruke u tiketu.\n\n' +
+      'Molimo te da se vratiš na početnu poruku i odgovoriš na sva pitanja, ' +
+      'kako bismo mogli nastaviti s procesom.',
+    autoClose:
+      'Ticket je automatski zatvoren jer 48 sati nije bilo aktivnosti. ' +
+      'Ako i dalje trebaš pomoć, slobodno otvori novi ticket. 🙂',
+  },
+};
 
 function getDefaultData() {
   return {
@@ -44,6 +93,8 @@ function getDefaultData() {
       channelId: '',
     },
     embeds: [],
+    // NOVO: ticketSystem blok
+    ticketSystem: JSON.parse(JSON.stringify(DEFAULT_TICKET_SYSTEM)),
   };
 }
 
@@ -61,6 +112,49 @@ function loadDb() {
 
 function saveDb(data) {
   fs.writeFileSync(dbFile, JSON.stringify(data, null, 2));
+}
+
+// helper: vraća ticket config = default + ono što je u db.json
+function getTicketConfig() {
+  const data = loadDb();
+  const cfg = data.ticketSystem || {};
+
+  const merged = {
+    // ako u configu nema ID, koristi hard-coded konstante niže (TICKET_CATEGORY_ID / TICKET_LOG_CHANNEL_ID)
+    logChannelId: cfg.logChannelId || TICKET_LOG_CHANNEL_ID || DEFAULT_TICKET_SYSTEM.logChannelId,
+    categoryId: cfg.categoryId || TICKET_CATEGORY_ID || DEFAULT_TICKET_SYSTEM.categoryId,
+    supportRoleId: cfg.supportRoleId || SUPPORT_ROLE_ID || DEFAULT_TICKET_SYSTEM.supportRoleId,
+    autoCloseHours:
+      typeof cfg.autoCloseHours === 'number'
+        ? cfg.autoCloseHours
+        : DEFAULT_TICKET_SYSTEM.autoCloseHours,
+    reminderHours:
+      typeof cfg.reminderHours === 'number'
+        ? cfg.reminderHours
+        : DEFAULT_TICKET_SYSTEM.reminderHours,
+    types: {
+      igranje: {
+        ...DEFAULT_TICKET_SYSTEM.types.igranje,
+        ...(cfg.types?.igranje || {}),
+      },
+      zalba: {
+        ...DEFAULT_TICKET_SYSTEM.types.zalba,
+        ...(cfg.types?.zalba || {}),
+      },
+      modovi: {
+        ...DEFAULT_TICKET_SYSTEM.types.modovi,
+        ...(cfg.types?.modovi || {}),
+      },
+    },
+    messages: {
+      reminder:
+        cfg.messages?.reminder || DEFAULT_TICKET_SYSTEM.messages.reminder,
+      autoClose:
+        cfg.messages?.autoClose || DEFAULT_TICKET_SYSTEM.messages.autoClose,
+    },
+  };
+
+  return merged;
 }
 
 // inicijaliziraj db.json ako ne postoji
@@ -277,6 +371,56 @@ app.post('/dashboard/embeds', async (req, res) => {
   }
 });
 
+// --------------- TICKET SYSTEM CONFIG ---------------
+app.post('/dashboard/tickets', (req, res) => {
+  const data = loadDb();
+  const ts = data.ticketSystem || { ...DEFAULT_TICKET_SYSTEM };
+
+  const {
+    ticketLogChannelId,
+    ticketCategoryId,
+    ticketSupportRoleId,
+    autoCloseHours,
+    reminderHours,
+    igranjeQuestions,
+    zalbaQuestions,
+    modoviQuestions,
+    reminderMessage,
+    autoCloseMessage,
+  } = req.body;
+
+  ts.logChannelId = ticketLogChannelId || '';
+  ts.categoryId = ticketCategoryId || '';
+  ts.supportRoleId = ticketSupportRoleId || '';
+
+  ts.autoCloseHours = Number(autoCloseHours) || DEFAULT_TICKET_SYSTEM.autoCloseHours;
+  ts.reminderHours = Number(reminderHours) || DEFAULT_TICKET_SYSTEM.reminderHours;
+
+  // pitanja: svaki red u textarea = jedno pitanje
+  ts.types.igranje.questions = (igranjeQuestions || '')
+    .split('\n')
+    .map((q) => q.trim())
+    .filter(Boolean);
+
+  ts.types.zalba.questions = (zalbaQuestions || '')
+    .split('\n')
+    .map((q) => q.trim())
+    .filter(Boolean);
+
+  ts.types.modovi.questions = (modoviQuestions || '')
+    .split('\n')
+    .map((q) => q.trim())
+    .filter(Boolean);
+
+  ts.messages.reminder = reminderMessage || DEFAULT_TICKET_SYSTEM.messages.reminder;
+  ts.messages.autoClose = autoCloseMessage || DEFAULT_TICKET_SYSTEM.messages.autoClose;
+
+  data.ticketSystem = ts;
+  saveDb(data);
+
+  res.redirect('/dashboard?tab=tickets');
+});
+
 app.listen(PORT, () => {
   console.log(`🌐 Dashboard listening on port ${PORT}`);
 });
@@ -285,10 +429,10 @@ app.listen(PORT, () => {
 //  DISCORD BOT DIO
 // =====================
 
-// ❗ kategorija gdje idu tiketi
+// ❗ kategorija gdje idu tiketi (default, može se override-ati u dashboardu)
 const TICKET_CATEGORY_ID = '1437220354992115912';
 
-// ❗ kanal gdje ide TRANSKRIPT zatvorenih tiketa  🔴 PROMIJENI OVO NA SVOJ KANAL
+// ❗ kanal gdje ide TRANSKRIPT zatvorenih tiketa  (default, može se override-ati u dashboardu)
 const TICKET_LOG_CHANNEL_ID = '1437218054718095410';
 
 // ❗ kanal gdje idu AKTIVNI FARMING poslovi (npr. #posao-na-farmi)
@@ -302,11 +446,9 @@ const activeTasks = new Map(); // key: userId, value: { field: string | null }
 
 // === mapa za ticket REMINDER-e (kanal -> intervalId) ===
 const ticketReminders = new Map();
-const TICKET_REMINDER_INTERVAL_MS = 3 * 60 * 60 * 1000; // 3 sata
 
 // === mapa za AUTO-CLOSE tiketa (kanal -> timeoutId) ===
 const ticketInactivity = new Map();
-const TICKET_AUTO_CLOSE_MS = 48 * 60 * 60 * 1000; // 48 sati
 
 console.log('▶ Pokrećem bota...');
 
@@ -338,6 +480,9 @@ function stopTicketReminder(channelId) {
 function startTicketReminder(channel, userId) {
   stopTicketReminder(channel.id);
 
+  const cfg = getTicketConfig();
+  const intervalMs = (cfg.reminderHours || 3) * 60 * 60 * 1000;
+
   const intervalId = setInterval(async () => {
     try {
       const ch = await channel.client.channels.fetch(channel.id).catch(() => null);
@@ -351,22 +496,19 @@ function startTicketReminder(channel, userId) {
         return;
       }
 
-      await ch.send({
-        content:
-          `Hej <@${userId}>! 😊\n` +
-          `Još uvijek nisi odgovorio na pitanja koja su ti postavljena na početku tiketa.\n\n` +
-          `📌 Molimo te da se vratiš na prvu poruku u tiketu i odgovoriš redom na sva pitanja ` +
-          `kako bismo mogli nastaviti s procesom. Hvala ti!`,
-      });
+      const text = (cfg.messages.reminder || DEFAULT_TICKET_SYSTEM.messages.reminder)
+        .replace(/{user}/g, `<@${userId}>`);
+
+      await ch.send({ content: text });
     } catch (err) {
       console.error('Greška pri slanju ticket remindera:', err);
     }
-  }, TICKET_REMINDER_INTERVAL_MS);
+  }, intervalMs);
 
   ticketReminders.set(channel.id, intervalId);
 }
 
-// === helperi za AUTO-CLOSE nakon 48h ===
+// === helperi za AUTO-CLOSE nakon X sati ===
 function stopTicketInactivity(channelId) {
   const timeoutId = ticketInactivity.get(channelId);
   if (timeoutId) {
@@ -377,6 +519,9 @@ function stopTicketInactivity(channelId) {
 
 function startTicketInactivity(channel) {
   stopTicketInactivity(channel.id);
+
+  const cfg = getTicketConfig();
+  const timeoutMs = (cfg.autoCloseHours || 48) * 60 * 60 * 1000;
 
   const timeoutId = setTimeout(async () => {
     try {
@@ -397,10 +542,10 @@ function startTicketInactivity(channel) {
       const match = topic.match(/Ticket owner:\s*(\d+)/i);
       const ticketOwnerId = match ? match[1] : null;
 
-      await ch.send(
-        '⏰ Ticket je automatski zatvoren jer 48 sati nije bilo aktivnosti ' +
-        'od strane korisnika niti tima. Ako i dalje trebaš pomoć, slobodno otvori novi tiket.'
-      ).catch(() => {});
+      const msgText =
+        (cfg.messages.autoClose || DEFAULT_TICKET_SYSTEM.messages.autoClose);
+
+      await ch.send(msgText).catch(() => {});
 
       // preimenuj
       if (!ch.name.startsWith('closed-')) {
@@ -457,18 +602,20 @@ function startTicketInactivity(channel) {
     } finally {
       stopTicketInactivity(channel.id);
     }
-  }, TICKET_AUTO_CLOSE_MS);
+  }, timeoutMs);
 
   ticketInactivity.set(channel.id, timeoutId);
 }
 
 // === helper za transkript tiketa ===
 async function sendTicketTranscript(channel, closedByUser) {
-  if (!TICKET_LOG_CHANNEL_ID) return;
+  const cfg = getTicketConfig();
+  const logId = cfg.logChannelId;
+  if (!logId) return;
 
   try {
     const logChannel = await channel.client.channels
-      .fetch(TICKET_LOG_CHANNEL_ID)
+      .fetch(logId)
       .catch(() => null);
     if (!logChannel) return;
 
@@ -546,7 +693,7 @@ client.on('messageCreate', (message) => {
 
   const channel = message.channel;
 
-  // ako je ovo tiket koji pratimo za inactivity → reset 48h timera
+  // ako je ovo tiket koji pratimo za inactivity → reset Xh timera
   if (ticketInactivity.has(channel.id)) {
     startTicketInactivity(channel);
   }
@@ -563,9 +710,6 @@ client.on('messageCreate', (message) => {
 
   // vlasnik tiketa je odgovorio → zaustavi reminder
   stopTicketReminder(channel.id);
-
-  // po želji možeš poslati poruku useru:
-  // channel.send('Hvala na odgovorima! Neko iz tima će uskoro preuzeti tvoj tiket. 😊').catch(() => {});
 });
 
 // ============== SLASH KOMANDE + INTERAKCIJE ==============
@@ -664,12 +808,15 @@ client.on('interactionCreate', async (interaction) => {
     const guild = interaction.guild;
     const member = interaction.member;
 
+    const cfg = getTicketConfig();
+    const typeCfg = cfg.types[type];
+
     const channelName = `ticket-${type}-${member.user.username}`.toLowerCase();
 
     const channel = await guild.channels.create({
       name: channelName,
       type: ChannelType.GuildText,
-      parent: TICKET_CATEGORY_ID,
+      parent: cfg.categoryId || TICKET_CATEGORY_ID,
       topic: `Ticket owner: ${member.id} | Type: ${type}`,
       permissionOverwrites: [
         {
@@ -677,7 +824,7 @@ client.on('interactionCreate', async (interaction) => {
           deny: [PermissionFlagsBits.ViewChannel],
         },
         {
-          id: SUPPORT_ROLE_ID,
+          id: cfg.supportRoleId || SUPPORT_ROLE_ID,
           allow: [
             PermissionFlagsBits.ViewChannel,
             PermissionFlagsBits.SendMessages,
@@ -707,40 +854,78 @@ client.on('interactionCreate', async (interaction) => {
 
     switch (type) {
       case 'igranje':
-        ticketMessage = [
-          `🎮 Zdravo <@${member.id}>, hvala što si otvorio **Igranje na serveru** ticket.`,
-          '',
-          '# 🧾 Evo da skratimo stvari i ubrzamo proces',
-          '',
-          '**Imaš par pitanja pa čisto da vlasnik ne gubi vrijeme kad preuzme ovaj tiket.**',
-          '',
-          '- Koliko često planiraš da igraš na serveru? (npr. svakodnevno, par puta nedeljno...)',
-          '- U koje vrijeme si najčešće aktivan? (npr. popodne, uveče, vikendom...)',
-          '- Da li si spreman da poštuješ raspored i obaveze na farmi (npr. oranje, žetva, hranjenje stoke)?',
-          '- Kako bi reagovao ako neko iz tima ne poštuje dogovor ili pravila igre?',
-          '- Da li koristiš voice chat (Discord) tokom igre?',
-          '- Da li si spreman da pomogneš drugim igračima (npr. novim članovima tima)?',
-          '- Zašto želiš da igraš baš na hard serveru?',
-          '',
-          '🕹️ Kada odgovoriš na ova pitanja, neko iz tima će ti se ubrzo javiti.',
-        ].join('\n');
+        if (typeCfg && typeCfg.questions?.length) {
+          ticketMessage = [
+            `🎮 Zdravo <@${member.id}>, hvala što si otvorio **${typeCfg.title || 'Igranje na serveru'}** ticket.`,
+            '',
+            '# 🧾 Evo da skratimo stvari i ubrzamo proces',
+            '',
+            '**Odgovori na sljedeća pitanja:**',
+            '',
+            ...typeCfg.questions.map((q) => `- ${q}`),
+            '',
+            '🕹️ Kada odgovoriš na ova pitanja, neko iz tima će ti se ubrzo javiti.',
+          ].join('\n');
+        } else {
+          ticketMessage = [
+            `🎮 Zdravo <@${member.id}>, hvala što si otvorio **Igranje na serveru** ticket.`,
+            '',
+            '# 🧾 Evo da skratimo stvari i ubrzamo proces',
+            '',
+            '**Imaš par pitanja pa čisto da vlasnik ne gubi vrijeme kad preuzme ovaj tiket.**',
+            '',
+            '- Koliko često planiraš da igraš na serveru? (npr. svakodnevno, par puta nedeljno...)',
+            '- U koje vrijeme si najčešće aktivan? (npr. popodne, uveče, vikendom...)',
+            '- Da li si spreman da poštuješ raspored i obaveze na farmi (npr. oranje, žetva, hranjenje stoke)?',
+            '- Kako bi reagovao ako neko iz tima ne poštuje dogovor ili pravila igre?',
+            '- Da li koristiš voice chat (Discord) tokom igre?',
+            '- Da li si spreman da pomogneš drugim igračima (npr. novim članovima tima)?',
+            '- Zašto želiš da igraš baš na hard serveru?',
+            '',
+            '🕹️ Kada odgovoriš na ova pitanja, neko iz tima će ti se ubrzo javiti.',
+          ].join('\n');
+        }
         break;
 
       case 'zalba':
-        ticketMessage =
-          `⚠️ Zdravo <@${member.id}>, hvala što si otvorio **žalbu na igrače**.\n` +
-          'Molimo te da navedeš:\n' +
-          '• Ime igrača na kojeg se žališ\n' +
-          '• Vrijeme i detaljan opis situacije\n' +
-          '• Dokaze (slike, video, logovi) ako ih imaš.\n' +
-          '👮 Moderatori će pregledati prijavu i javiti ti se.';
+        if (typeCfg && typeCfg.questions?.length) {
+          ticketMessage = [
+            `⚠️ Zdravo <@${member.id}>, hvala što si otvorio **${typeCfg.title || 'žalbu na igrače'}** ticket.`,
+            '',
+            '**Molimo te da odgovoriš na sljedeća pitanja:**',
+            '',
+            ...typeCfg.questions.map((q) => `- ${q}`),
+            '',
+            '👮 Moderatori će pregledati prijavu i javiti ti se.',
+          ].join('\n');
+        } else {
+          ticketMessage =
+            `⚠️ Zdravo <@${member.id}>, hvala što si otvorio **žalbu na igrače**.\n` +
+            'Molimo te da navedeš:\n' +
+            '• Ime igrača na kojeg se žališ\n' +
+            '• Vrijeme i detaljan opis situacije\n' +
+            '• Dokaze (slike, video, logovi) ako ih imaš.\n' +
+            '👮 Moderatori će pregledati prijavu i javiti ti se.';
+        }
         break;
 
       case 'modovi':
-        ticketMessage =
-          `🧩 Zdravo <@${member.id}>, hvala što si otvorio **izrada modova** ticket.\n` +
-          'Opiši kakav mod radiš ili s kojim dijelom imaš problem.\n' +
-          '💡 Slobodno pošalji kod, ideju ili primjer – što više informacija daš, lakše ćemo pomoći.';
+        if (typeCfg && typeCfg.questions?.length) {
+          ticketMessage = [
+            `🧩 Zdravo <@${member.id}>, hvala što si otvorio **${typeCfg.title || 'izrada modova'}** ticket.`,
+            '',
+            '**Kako bismo ti lakše pomogli, odgovori na sljedeća pitanja:**',
+            '',
+            ...typeCfg.questions.map((q) => `- ${q}`),
+            '',
+            '💡 Što više informacija daš, lakše ćemo pomoći.',
+          ].join('\n');
+        } else {
+          ticketMessage =
+            `🧩 Zdravo <@${member.id}>, hvala što si otvorio **izrada modova** ticket.\n` +
+            'Opiši kakav mod radiš ili s kojim dijelom imaš problem.\n' +
+            '💡 Slobodno pošalji kod, ideju ili primjer – što više informacija daš, lakše ćemo pomoći.';
+        }
         break;
 
       default:
@@ -768,7 +953,7 @@ client.on('interactionCreate', async (interaction) => {
 
     // pokreni automatski podsjetnik
     startTicketReminder(channel, member.id);
-    // pokreni i 48h inactivity auto-close
+    // pokreni i inactivity auto-close
     startTicketInactivity(channel);
 
     await interaction.reply({
