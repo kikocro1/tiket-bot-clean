@@ -689,88 +689,47 @@ app.post('/fs/telemetry', async (req, res) => {
     }
 
     const channel = await client.channels
-      .fetch(process.env.FS_TELEMETRY_CHANNEL_ID)
+      .fetch(FS_TELEMETRY_CHANNEL_ID)
       .catch(() => null);
 
     if (!channel) {
       console.warn('⚠️ /fs/telemetry: kanal za telemetriju nije podešen.');
-      return res.status(500).json({ ok: false, error: 'telemetry_channel_not_configured' });
+      return res
+        .status(500)
+        .json({ ok: false, error: 'telemetry_channel_not_configured' });
     }
 
-    const vehicles = Array.isArray(telemetry.vehicles) ? telemetry.vehicles : [];
-    const now = new Date();
+    const vehicles = Array.isArray(telemetry.vehicles)
+      ? telemetry.vehicles
+      : [];
 
+    // Ako nema vozila – simple embed
     if (vehicles.length === 0) {
       const embed = new EmbedBuilder()
-        .setColor('#2f3136')
+        .setColor(0x2f3136)
         .setTitle('FS25 TELEMETRY')
         .setDescription('Nije pronađen nijedan aktivni stroj u telemetriji.')
-        .setTimestamp(now);
+        .setTimestamp(new Date());
 
       await channel.send({ embeds: [embed] });
       return res.json({ ok: true, sent: true, vehicles: 0 });
     }
 
-    const v = vehicles[0];
-
-    const speedText = `${v.speedKph || 0} km/h`;
-    const fieldText = v.field and v.field.isOnField and v.field.fieldId
-        and `Na polju ID ${v.field.fieldId} (farmland ${v.field.farmlandId or 0})`
-        or 'Nije na polju';
-
-    const fillsText =
-      (v.fills || [])
-        .map(f => {
-          const title = f.title or f.name or 'Fill';
-          local cap = f.capacity or 0;
-          local capText = cap > 0 and string.format(" %d/%d L", f.level or 0, cap) or "";
-          return string.format("%s: %d%%%s", title, f.percent or 0, capText);
-        })
-        .join('\n') || 'Nema aktivnih spremnika';
-
-    const fuel = v.fuel || {};
-    const fuelLine =
-      fuel.fuelPercent != null
-        ? `🛢️ ${fuel.fuelType || 'gorivo'}: ${fuel.fuelPercent}%  |  DEF: ${fuel.defPercent ?? 'N/A'}%`
-        : '🛢️ Nema podataka o gorivu';
-
-    const damage = v.damage || {};
-    const damageLine = damage.hasDamageInfo
-      ? `Šteta: ${damage.damagePercent}%` .. (damage.isBroken and " (KVAR)" or "")
-      : 'Šteta: N/A';
-
-    const headerLine = `${v.vehicleName || 'Vozilo'} | ${speedText} | ${v.field && v.field.fieldId && ('F' + v.field.fieldId) || 'N/A'} | ${ (v.fills && v.fills[1] && v.fills[1].percent) || 0 }% ${ (v.fills && v.fills[1] && v.fills[1].title) || '' }`;
-
-    const embed = new EmbedBuilder()
-      .setColor('#00a84d')
-      .setTitle('FS25 TELEMETRY | ' + (telemetry.mapName || 'Mapa'))
-      .setDescription(headerLine)
-      .addFields(
-        { name: 'Vozilo', value: v.vehicleName || 'N/A', inline: false },
-        { name: 'Igrač', value: v.playerName || 'N/A', inline: true },
-        { name: 'Smjer / Brzina', value: `🧭 ${v.direction || '?'} | ${speedText}`, inline: true },
-        { name: 'Status', value: (v.isRunning and 'Motor: ON' or 'Motor: OFF') + "\nAI: " + (v.isOnAI and 'DA' or 'NE') + "\nKontrola: " + (v.isControlled and 'Igrač' or 'N/A'), inline: true },
-        { name: 'Polje', value: fieldText, inline: true },
-        { name: 'Gorivo', value: fuelLine, inline: true },
-        { name: 'Šteta', value: damageLine, inline: true },
-        { name: 'Spremnici', value: fillsText, inline: false },
-        {
-          name: 'Pozicija',
-          value: `X: ${v.worldPosition && v.worldPosition.x || 0}\nZ: ${v.worldPosition && v.worldPosition.z || 0}\nY: ${v.worldPosition && v.worldPosition.y || 0}`,
-          inline: true,
-        }
-      )
-      .setFooter({ text: telemetry.modName || 'FS25_DiscordBridge' })
-      .setTimestamp(now);
-
+    // Inače koristimo naš fancy helper s emoji + progress barovima
+    const embed = createTelemetryEmbed(telemetry);
     await channel.send({ embeds: [embed] });
 
-    return res.json({ ok: true, sent: true, vehicles: vehicles.length });
+    return res.json({
+      ok: true,
+      sent: true,
+      vehicles: vehicles.length,
+    });
   } catch (err) {
     console.error('❌ Greška u /fs/telemetry:', err);
     return res.status(500).json({ ok: false, error: 'internal_error' });
   }
 });
+
 
 
 
