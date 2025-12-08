@@ -208,9 +208,15 @@ const SOWING_SEASON_CHANNEL_ID = "1447710723051622431";
 // učitaj ili kreiraj listu sezona
 function getSowingSeasons() {
   const data = loadDb();
-  if (!Array.isArray(data.sowingSeasons)) data.sowingSeasons = [];
+
+  if (!Array.isArray(data.sowingSeasons)) {
+    data.sowingSeasons = [];
+    saveDb(data); // ← ključna linija
+  }
+
   return data.sowingSeasons;
 }
+
 
 function saveSowingSeasons(list) {
   const data = loadDb();
