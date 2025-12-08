@@ -673,9 +673,6 @@ app.post('/fs/test', (req, res) => {
 });
 
 // =====================
-//  FS WEBHOOK – TELEMETRY (Discord embed)
-// =====================
-// =====================
 //  FS WEBHOOK – TELEMETRY -> DISCORD EMBED
 // =====================
 app.post('/fs/telemetry', async (req, res) => {
