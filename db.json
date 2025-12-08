@@ -57,7 +57,7 @@
     }
   },
   "farmingTasks": [],
-  "farmingFields": [
+    "farmingFields": [
     "5",
     "16",
     "17",
@@ -70,5 +70,6 @@
     "30-31",
     "2-3",
     "24-23"
-  ]
+  ],
+  "sowingSeasons": []
 }
