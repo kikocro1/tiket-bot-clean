@@ -295,25 +295,40 @@ async function updateSeasonEmbed(guild) {
     })
     .setTimestamp();
 
-  // ako embed još ne postoji → kreiramo novi
-  if (!season.messageId) {
-    const msg = await channel.send({ embeds: [embed] });
-    season.messageId = msg.id;
-    saveSowingSeasons(getSowingSeasons());
+  // ako embed poruka još ne postoji → kreiramo je
+if (!season.messageId) {
+    const sent = await channel.send({ embeds: [embed] });
+    season.messageId = sent.id;
+    
+    const seasons = getSowingSeasons();
+    const idx = seasons.findIndex(s => s.season === season.season);
+    if (idx !== -1) {
+        seasons[idx] = season;
+        saveSowingSeasons(seasons);
+    }
     return;
-  }
+}
+
 
   // inače samo ažuriramo postojeći embed
-  const msg = await channel.messages
-    .fetch(season.messageId)
-    .catch(() => null);
+const msg = await channel.messages
+  .fetch(season.messageId)
+  .catch(() => null);
 
-  if (!msg) {
+if (!msg) {
     const m = await channel.send({ embeds: [embed] });
     season.messageId = m.id;
-    saveSowingSeasons(getSowingSeasons());
+
+    const seasons = getSowingSeasons();
+    const idx = seasons.findIndex(s => s.season === season.season);
+    if (idx !== -1) {
+        seasons[idx] = season;
+        saveSowingSeasons(seasons);
+    }
+
     return;
-  }
+}
+
 
   await msg.edit({ embeds: [embed] });
 
@@ -335,13 +350,25 @@ async function updateSeasonEmbed(guild) {
 
 // funkcija koja se poziva kada se kreira novi posao za sijanje
 async function handleNewSowingTask(guild, field, cropName) {
-  const season = getActiveSeason();
-  season.fields[field] = cropName;
+    const seasons = getSowingSeasons();
+    let season = getActiveSeason();
 
-  saveSowingSeasons(getSowingSeasons());
+    // ako nema aktivne sezone → kreiraj
+    if (!season) {
+        season = createNewSeason();
+        seasons.push(season);
+    }
 
-  await updateSeasonEmbed(guild);
+    // upiši kulturu u polje
+    season.fields[field] = cropName;
+
+    // spremi sezonsku listu
+    saveSowingSeasons(seasons);
+
+    // update Discord embed
+    await updateSeasonEmbed(guild);
 }
+
 
 
 // inicijaliziraj db.json ako ne postoji
