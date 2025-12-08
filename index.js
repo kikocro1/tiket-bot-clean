@@ -1,4 +1,4 @@
-// 🔹 prvo učitaj .env 
+// 🔹 prvo učitaj .env  
 require('dotenv').config();
 
 const path = require('path');
@@ -485,6 +485,169 @@ function checkFsSecret(req, res) {
 }
 
 // =====================
+//  FS TELEMETRY – helper funkcije (emoji, progress bar, boje, embed)
+// =====================
+
+function makeProgressBar(percent, size = 10) {
+  const p = Math.max(0, Math.min(100, Math.round(percent || 0)));
+  const filled = Math.round((p / 100) * size);
+  const empty = size - filled;
+  const fullChar = '█';
+  const emptyChar = '░';
+  return fullChar.repeat(filled) + emptyChar.repeat(empty);
+}
+
+function pickVehicleEmoji(typeName = '') {
+  const t = typeName.toLowerCase();
+  if (t.includes('combine')) return '🌾';
+  if (t.includes('truck') || t.includes('lkw')) return '🚚';
+  if (t.includes('trailer')) return '🚛';
+  if (t.includes('car') || t.includes('pickup')) return '🚙';
+  if (t.includes('telehandler') || t.includes('loader')) return '🚧';
+  return '🚜';
+}
+
+function pickColorFromVehicle(v) {
+  if (!v) return 0x2f3136;
+  const dmg = v.damage?.damagePercent ?? 0;
+  const broken = v.damage?.isBroken;
+
+  if (broken || dmg >= 80) return 0xff0000;      // crveno – razbijen
+  if (dmg >= 40) return 0xffa500;                // narančasto – dosta oštećen
+  if (v.isOnAI) return 0xffe000;                 // žuto – AI ga vozi
+  if (v.isRunning) return 0x57f287;              // zeleno – motor radi
+  return 0x5865f2;                               // default Discord plava
+}
+
+function createTelemetryEmbed(telemetry) {
+  const v = telemetry?.vehicles?.[0];
+
+  if (!v) {
+    return new EmbedBuilder()
+      .setTitle('FS25 TELEMETRY')
+      .setDescription('Nije pronađen nijedan aktivni stroj u telemetriji.')
+      .setColor(0x2f3136);
+  }
+
+  const emoji = pickVehicleEmoji(v.typeName);
+  const mapName = telemetry.mapName || 'Lunow';
+
+  const speed = `${v.speedKph ?? 0} km/h`;
+  const direction = v.direction || '-';
+
+  const fieldId = v.field?.fieldId;
+  const farmlandId = v.field?.farmlandId;
+  const fieldText = v.field?.isOnField
+    ? (fieldId ? `F${fieldId}` : farmlandId ? `farmland ${farmlandId}` : 'na polju')
+    : 'izvan polja';
+
+  // fill info – uzimamo prvi spremnik ako postoji
+  const fill = v.fills?.[0];
+  const fillPercent = fill?.percent ?? 0;
+  const fillTitle = fill?.title || 'Prazno';
+  const fillLine = `${fillPercent}% ${fillTitle}`;
+
+  // gorivo
+  const fuelPercent = v.fuel?.fuelPercent ?? 0;
+  const defPercent = v.fuel?.defPercent ?? null;
+  const fuelType = (v.fuel?.fuelType || 'fuel').toUpperCase();
+
+  const fuelBar = makeProgressBar(fuelPercent, 12);
+  const defBar = defPercent != null ? makeProgressBar(defPercent, 12) : null;
+
+  // damage
+  const damagePercent = v.damage?.damagePercent ?? 0;
+  const damageBar = makeProgressBar(damagePercent, 12);
+
+  const isRunning = v.isRunning ? 'ON' : 'OFF';
+  const aiText = v.isOnAI ? 'DA' : 'NE';
+  const controlledText = v.isControlled ? 'Igrač' : (v.isOnAI ? 'AI' : 'Nije');
+
+  const playerName = v.playerName || 'Nepoznat';
+  const farmName = v.farmName || `Farm ${v.farmId ?? '?'}`;
+
+  // 🔹 PRVA LINIJA – sve u jednom redu:
+  // "CLAAS TRION 750 | 8 km/h | F112 | 54% Corn"
+  const summaryLine =
+    `${emoji} ${v.vehicleName || 'Vozilo'} | ` +
+    `${speed} | ` +
+    `${fieldText} | ` +
+    `📦 ${fillLine}`;
+
+  const embed = new EmbedBuilder()
+    .setTitle(`FS25 TELEMETRY | ${mapName}`)
+    .setDescription(summaryLine)
+    .setColor(pickColorFromVehicle(v))
+    .addFields(
+      {
+        name: 'Vozilo',
+        value: [
+          `**Naziv:** ${v.vehicleName || 'Nepoznato'}`,
+          `**Tip:** ${v.typeName || '-'}`,
+          `**Igrač:** ${playerName}`,
+          `**Farma:** ${farmName}`,
+        ].join('\n'),
+        inline: false,
+      },
+      {
+        name: 'Status',
+        value: [
+          `**Motor:** ${isRunning}`,
+          `**Smjer:** ${direction}`,
+          `**Brzina:** ${speed}`,
+          `**AI:** ${aiText}`,
+          `**Kontrola:** ${controlledText}`,
+        ].join('\n'),
+        inline: true,
+      },
+      {
+        name: 'Gorivo 🛢️',
+        value: [
+          `**${fuelType}:** ${fuelPercent}%`,
+          fuelBar,
+          defBar != null ? `**DEF:** ${defPercent}%\n${defBar}` : null,
+        ].filter(Boolean).join('\n'),
+        inline: true,
+      },
+      {
+        name: 'Šteta',
+        value: [
+          `**Stanje:** ${damagePercent}%`,
+          damageBar,
+          v.damage?.isBroken ? '⚠️ **Vozilo je pokvareno!**' : '',
+        ].filter(Boolean).join('\n'),
+        inline: true,
+      },
+      {
+        name: 'Spremnici 📦',
+        value: fill
+          ? [
+              `**${fillTitle}:** ${fillPercent}%`,
+              makeProgressBar(fillPercent, 18),
+              `${Math.round(fill.level || 0)}/${Math.round(fill.capacity || 0)} L`,
+            ].join('\n')
+          : 'Nema aktivnog punjenja.',
+        inline: false,
+      },
+      {
+        name: 'Pozicija 🧭',
+        value: [
+          `X: ${v.worldPosition?.x?.toFixed(1) ?? '-'}`,
+          `Z: ${v.worldPosition?.z?.toFixed(1) ?? '-'}`,
+          `Y: ${v.worldPosition?.y?.toFixed(1) ?? '-'}`,
+          `Polje: ${fieldText}`,
+        ].join('\n'),
+        inline: false,
+      },
+    )
+    .setFooter({
+      text: `${telemetry.modName || 'FS25_DiscordBridge'} • ${new Date().toLocaleString('hr-HR')}`,
+    });
+
+  return embed;
+}
+
+// =====================
 //  FS WEBHOOK – test ruta
 // =====================
 app.post('/fs/test', (req, res) => {
@@ -493,6 +656,37 @@ app.post('/fs/test', (req, res) => {
   console.log('🔗 [FS TEST] Primljen payload:', req.body);
 
   res.json({ ok: true, received: req.body });
+});
+
+// =====================
+//  FS WEBHOOK – TELEMETRY (Discord embed)
+// =====================
+app.post('/fs/telemetry', async (req, res) => {
+  if (!checkFsSecret(req, res)) return;
+
+  const telemetry = req.body || {};
+  console.log('🚜 [FS TELEMETRY]', JSON.stringify(telemetry).slice(0, 300) + '...');
+
+  if (!FS_TELEMETRY_CHANNEL_ID) {
+    console.warn('⚠️ FS_TELEMETRY_CHANNEL_ID nije postavljen – ne mogu poslati embed.');
+    return res.status(500).json({ ok: false, error: 'telemetry_channel_not_configured' });
+  }
+
+  try {
+    const channel = await client.channels.fetch(FS_TELEMETRY_CHANNEL_ID).catch(() => null);
+    if (!channel) {
+      console.warn('⚠️ FS TELEMETRY channel ne postoji ili ga bot ne vidi.');
+      return res.status(404).json({ ok: false, error: 'channel_not_found' });
+    }
+
+    const embed = createTelemetryEmbed(telemetry);
+    await channel.send({ embeds: [embed] });
+
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('❌ Greška pri slanju FS telemetry embeda:', err);
+    return res.status(500).json({ ok: false, error: 'send_failed' });
+  }
 });
 
 // =====================
@@ -684,6 +878,9 @@ const FS_JOB_CHANNEL_ID = '1442984129699254292';
 
 // ❗ kanal gdje idu ZAVRŠENI poslovi (npr. #zavrseni-poslovi)
 const FS_JOB_DONE_CHANNEL_ID = '1442951254287454399';
+
+// ❗ kanal gdje idu FS25 TELEMETRY logovi (embed s vozilom)
+const FS_TELEMETRY_CHANNEL_ID = process.env.FS_TELEMETRY_CHANNEL_ID || '';
 
 // mapa za FARMING zadatke (po korisniku)
 const activeTasks = new Map(); // key: userId, value: { field: string | null }
