@@ -101,6 +101,10 @@ const DEFAULT_FARMING_FIELDS = [
   '24-23',
 ];
 
+// default sezonski podaci za sjetvu
+const DEFAULT_SOWING_SEASONS = [];
+
+
 function getDefaultData() {
   return {
     welcome: {
@@ -193,6 +197,146 @@ function saveFarmingFields(fields) {
   data.farmingFields = Array.from(new Set(fields.map(String)));
   saveDb(data);
 }
+
+// =====================
+//  SOWING SEASON SYSTEM – DB + HELPERS
+// =====================
+
+// ID kanala gdje ide živa embed poruka
+const SOWING_SEASON_CHANNEL_ID = "1447710723051622431";
+
+// učitaj ili kreiraj listu sezona
+function getSowingSeasons() {
+  const data = loadDb();
+  if (!Array.isArray(data.sowingSeasons)) data.sowingSeasons = [];
+  return data.sowingSeasons;
+}
+
+function saveSowingSeasons(list) {
+  const data = loadDb();
+  data.sowingSeasons = list;
+  saveDb(data);
+}
+
+// kreira praznu novu sezonu
+function createNewSeason() {
+  const seasons = getSowingSeasons();
+  const number = seasons.length + 1;
+
+  const newSeason = {
+    season: number,
+    messageId: null,
+    completed: false,
+    fields: {}, // "36": "ječam"
+    createdAt: Date.now(),
+  };
+
+  seasons.push(newSeason);
+  saveSowingSeasons(seasons);
+
+  return newSeason;
+}
+
+// uzmi aktivnu sezonu ili kreiraj novu
+function getActiveSeason() {
+  const seasons = getSowingSeasons();
+  if (!seasons.length) return createNewSeason();
+
+  const last = seasons[seasons.length - 1];
+  if (last.completed) return createNewSeason();
+  return last;
+}
+
+// generisanje progress bara
+function makeSeasonProgressBar(current, total) {
+  const percent = Math.round((current / total) * 100);
+  const filledCount = Math.round(percent / 10);
+  const emptyCount = 10 - filledCount;
+  return "▰".repeat(filledCount) + "▱".repeat(emptyCount) + ` ${percent}%`;
+}
+
+// update ili kreiranje embed poruke u sezoni
+async function updateSeasonEmbed(guild) {
+  const season = getActiveSeason();
+  const fields = getFarmingFields();
+  const total = fields.length;
+  const sownCount = Object.keys(season.fields).length;
+
+  const channel = await guild.channels
+    .fetch(SOWING_SEASON_CHANNEL_ID)
+    .catch(() => null);
+
+  if (!channel) return;
+
+  const lines = [];
+  for (const f of fields) {
+    if (season.fields[f]) {
+      lines.push(`**Polje ${f}** — ${season.fields[f]}`);
+    } else {
+      lines.push(`~~Polje ${f} — nije posijano~~`);
+    }
+  }
+
+  const progress = makeSeasonProgressBar(sownCount, total);
+
+  const embed = new EmbedBuilder()
+    .setColor("#3ba55d")
+    .setTitle(`🌾 Sezona Sjetve #${season.season}`)
+    .setDescription(lines.join("\n"))
+    .addFields({
+      name: "Progres",
+      value: `${sownCount}/${total}\n${progress}`,
+    })
+    .setTimestamp();
+
+  // ako embed još ne postoji → kreiramo novi
+  if (!season.messageId) {
+    const msg = await channel.send({ embeds: [embed] });
+    season.messageId = msg.id;
+    saveSowingSeasons(getSowingSeasons());
+    return;
+  }
+
+  // inače samo ažuriramo postojeći embed
+  const msg = await channel.messages
+    .fetch(season.messageId)
+    .catch(() => null);
+
+  if (!msg) {
+    const m = await channel.send({ embeds: [embed] });
+    season.messageId = m.id;
+    saveSowingSeasons(getSowingSeasons());
+    return;
+  }
+
+  await msg.edit({ embeds: [embed] });
+
+  // ako je sezona završena → zaključavamo je
+  if (sownCount >= total && !season.completed) {
+    season.completed = true;
+    saveSowingSeasons(getSowingSeasons());
+
+    const doneEmbed = EmbedBuilder.from(embed)
+      .setColor("#ffcc00")
+      .setTitle(`🌾 Sezona Sjetve #${season.season} — ✔ Završena`);
+
+    await msg.edit({ embeds: [doneEmbed] });
+
+    // automatski kreiramo novu sezonu
+    createNewSeason();
+  }
+}
+
+// funkcija koja se poziva kada se kreira novi posao za sijanje
+async function handleNewSowingTask(guild, field, cropName) {
+  const season = getActiveSeason();
+  season.fields[field] = cropName;
+
+  saveSowingSeasons(getSowingSeasons());
+
+  await updateSeasonEmbed(guild);
+}
+
 
 // inicijaliziraj db.json ako ne postoji
 saveDb(loadDb());
@@ -896,6 +1040,21 @@ app.post('/fs/field-update', async (req, res) => {
       });
     }
 
+    // 🌾 Ako FS završi posao koji je sijanje, zabilježi ga u sezoni
+try {
+  const crop = payload.crop || payload.seed || null;
+
+  if (crop) {
+    const guild = await client.guilds.fetch(guildId).catch(() => null);
+    if (guild) {
+      await handleNewSowingTask(guild, field, crop);
+    }
+  }
+} catch (e) {
+  console.log("⚠️ Greška pri upisu FS sjetve u sezonu:", e);
+}
+
+
     return res.json({ ok: true, finished: true });
   } catch (err) {
     console.error('❌ Greška u /fs/field-update:', err);
@@ -945,9 +1104,21 @@ const client = new Client({
   ],
 });
 
-client.once('ready', () => {
+client.once('ready', async () => {
   console.log(`✅ Bot je online kao ${client.user.tag}`);
+
+  // 🌾 AUTOMATSKO OBNAVLJANJE SEZONE SJETVE PRI STARTU BOTA
+  try {
+    const guild = await client.guilds.fetch(guildId).catch(() => null);
+    if (guild) {
+      await updateSeasonEmbed(guild);
+      console.log("🌾 Sezona Sjetve — embed obnovljen pri startu bota.");
+    }
+  } catch (err) {
+    console.log("⚠️ Greška pri obnavljanju Sezone Sjetve:", err);
+  }
 });
+
 
 client.on('error', (err) => {
   console.error('❌ Client error:', err);
@@ -2046,6 +2217,10 @@ client.on('interactionCreate', async (interaction) => {
       }
 
       const seedName = interaction.fields.getTextInputValue('seed_name');
+
+      // 🌱 Sezona Sjetve – registracija novog posijanog polja
+      await handleNewSowingTask(interaction.guild, current.field, seedName);
+
 
       const embed = new EmbedBuilder()
         .setColor('#00a84d')
