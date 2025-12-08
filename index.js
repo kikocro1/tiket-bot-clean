@@ -119,6 +119,7 @@ function getDefaultData() {
     // 🔹 ovdje ćemo spremati aktivne/završene FS zadatke (da ih možemo naći po polju)
     farmingTasks: [],
     farmingFields: [...DEFAULT_FARMING_FIELDS],
+    sowingSeasons: [...DEFAULT_SOWING_SEASONS],   // ✅ OVO NEDOSTAJE
   };
 }
 
