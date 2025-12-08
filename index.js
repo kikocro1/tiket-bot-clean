@@ -662,32 +662,38 @@ app.post('/fs/test', (req, res) => {
 //  FS WEBHOOK – TELEMETRY (Discord embed)
 // =====================
 app.post('/fs/telemetry', async (req, res) => {
-  if (!checkFsSecret(req, res)) return;
+    try {
+        const secret = req.headers['x-fs-secret'];
+        if (secret !== process.env.FS_WEBHOOK_SECRET) {
+            return res.status(403).json({ ok: false, error: "invalid_secret" });
+        }
 
-  const telemetry = req.body || {};
-  console.log('🚜 [FS TELEMETRY]', JSON.stringify(telemetry).slice(0, 300) + '...');
+        const payload = req.body;
 
-  if (!FS_TELEMETRY_CHANNEL_ID) {
-    console.warn('⚠️ FS_TELEMETRY_CHANNEL_ID nije postavljen – ne mogu poslati embed.');
-    return res.status(500).json({ ok: false, error: 'telemetry_channel_not_configured' });
-  }
+        // Ako watcher šalje embed-ready payload → direktno proslijedi u Discord
+        if (payload.embeds) {
+            await sendToDiscord(payload);
+            return res.json({ ok: true });
+        }
 
-  try {
-    const channel = await client.channels.fetch(FS_TELEMETRY_CHANNEL_ID).catch(() => null);
-    if (!channel) {
-      console.warn('⚠️ FS TELEMETRY channel ne postoji ili ga bot ne vidi.');
-      return res.status(404).json({ ok: false, error: 'channel_not_found' });
+        // Ako slučajno dođe stari FS JSON
+        const vehicles = payload.vehicles || [];
+        if (vehicles.length === 0) {
+            await sendNoVehicleEmbed();
+            return res.json({ ok: true });
+        }
+
+        const embed = buildVehicleEmbed(vehicles[0]);
+        await sendToDiscord({ embeds: [embed] });
+
+        return res.json({ ok: true });
+
+    } catch (err) {
+        console.error("FS telemetry error:", err);
+        return res.status(500).json({ ok: false, error: "server_error" });
     }
-
-    const embed = createTelemetryEmbed(telemetry);
-    await channel.send({ embeds: [embed] });
-
-    return res.json({ ok: true });
-  } catch (err) {
-    console.error('❌ Greška pri slanju FS telemetry embeda:', err);
-    return res.status(500).json({ ok: false, error: 'send_failed' });
-  }
 });
+
 
 // =====================
 //  FS – pomoćne funkcije za zadatke (DB)
