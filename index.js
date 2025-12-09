@@ -2107,6 +2107,13 @@ if (interaction.customId === 'task_done') {
   if (task && task.jobKey === 'sijanje') {
     const cropName = task.cropName || task.jobName || "nepoznato";
 
+    // 🔧 FIX – upiši cropName u DB ako nedostaje
+if (!task.cropName) {
+    task.cropName = cropName;
+    saveDb(db);
+}
+
+
     try {
       await handleNewSowingTask(interaction.guild, task.field, cropName);
       console.log(`🌾 Ručno završavanje sjetve → Polje ${task.field}: ${cropName}`);
