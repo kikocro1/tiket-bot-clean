@@ -41,7 +41,7 @@ const commands = [
   // ✏️ Uredi postojeće polje
   new SlashCommandBuilder()
     .setName('update-field')
-    .setDescription('Uredi postojeće polje (prvo uneseš staro polje, zatim novo ime).'),
+    .setDescription('Uredi postojeće polje (prvo uneseš staro polje, zatim novo ime polja).'),
 
   // 🌾 resetira sezonu sjetve (briše posijana polja, embed ostaje)
   new SlashCommandBuilder()
