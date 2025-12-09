@@ -2088,41 +2088,56 @@ client.on('interactionCreate', async (interaction) => {
     }
 
     // === FARMING: označi zadatak kao završen ručno ===
-    if (interaction.customId === 'task_done') {
-      const oldEmbed = interaction.message.embeds[0];
+if (interaction.customId === 'task_done') {
+  const oldEmbed = interaction.message.embeds[0];
 
-      if (!oldEmbed) {
-        await interaction.reply({
-          content: '⚠️ Ne mogu pronaći podatke o zadatku.',
-          ephemeral: true,
-        });
-        return;
-      }
+  if (!oldEmbed) {
+    await interaction.reply({
+      content: '⚠️ Ne mogu pronaći podatke o zadatku.',
+      ephemeral: true,
+    });
+    return;
+  }
 
-      const finishedEmbed = EmbedBuilder.from(oldEmbed)
-        .setColor('#ff0000')
-        .setTitle('✅ Zadatak završen')
-        .setFooter({
-          text: 'Označeno kao završeno od strane: ' + interaction.user.tag,
-        })
-        .setTimestamp();
+  // 🔍 PRONAĐI ZADATAK U DB-u PO PORUKI
+  const db = loadDb();
+  const task = db.farmingTasks.find(t => t.messageId === interaction.message.id);
 
-      const doneChannel = await interaction.guild.channels.fetch(
-        FS_JOB_DONE_CHANNEL_ID
-      );
+  // 🌾 Ako je ovo bio zadatak SIJANJA → upis u sezonu
+  if (task && task.jobKey === 'sijanje') {
+    const cropName = task.cropName || task.jobName || "nepoznato";
 
-      await doneChannel.send({ embeds: [finishedEmbed] });
-
-      await interaction.reply({
-        content:
-          '✅ Zadatak je označen kao završen i prebačen u kanal za završene poslove.',
-        ephemeral: true,
-      });
-
-      await interaction.message.delete().catch(() => {});
-
-      return;
+    try {
+      await handleNewSowingTask(interaction.guild, task.field, cropName);
+      console.log(`🌾 Ručno završavanje sjetve → Polje ${task.field}: ${cropName}`);
+    } catch (err) {
+      console.error("❌ Greška pri ručnom upisu sjetve:", err);
     }
+  }
+
+  // 🔄 GENERIRAJ NOVI EMBED O ZAVRŠETKU
+  const finishedEmbed = EmbedBuilder.from(oldEmbed)
+    .setColor('#ff0000')
+    .setTitle('✅ Zadatak završen')
+    .setFooter({
+      text: 'Označeno kao završeno od strane: ' + interaction.user.tag,
+    })
+    .setTimestamp();
+
+  const doneChannel = await interaction.guild.channels.fetch(FS_JOB_DONE_CHANNEL_ID);
+
+  await doneChannel.send({ embeds: [finishedEmbed] });
+
+  await interaction.reply({
+    content:
+      '✅ Zadatak je označen kao završen i prebačen u kanal za završene poslove.',
+    ephemeral: true,
+  });
+
+  await interaction.message.delete().catch(() => {});
+  return;
+}
+
 
     // === TICKET DUGMAD: CLAIM & CLOSE ===
     if (
