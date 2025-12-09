@@ -399,7 +399,7 @@ async function updateSeasonEmbed(guild, forceEmpty = false) {
 
     await msg.edit({ embeds: [doneEmbed] });
 
-    
+
     createNewSeason();
   }
 }
@@ -1670,25 +1670,28 @@ if (interaction.commandName === 'reset-season') {
     });
   }
 
-  // učitaj sve sezone
+  
   const seasons = getSowingSeasons();
   const active = getActiveSeason();
 
-  // resetiraj sezonu
+  // 1️⃣ Resetiramo polja
   active.fields = {};
   active.completed = false;
 
-  // spremi u db.json
+  // 2️⃣ Zapišemo nazad u DB
+  const index = seasons.findIndex(s => s.season === active.season);
+  seasons[index] = active;
   saveSowingSeasons(seasons);
 
-  // FORSIRAJ PRAZAN EMBED (100% radi)
+  // 3️⃣ Očistimo embed totalno
   await updateSeasonEmbed(interaction.guild, true);
 
   return interaction.reply({
-    content: '🔄 Sezona resetirana! Embed očišćen.',
+    content: '🔄 Sezona resetirana! Živi embed je očišćen.',
     ephemeral: true,
   });
 }
+
 
 
  }
