@@ -1670,7 +1670,7 @@ if (interaction.commandName === 'reset-season') {
     });
   }
 
-  
+
   const seasons = getSowingSeasons();
   const active = getActiveSeason();
 
@@ -1692,6 +1692,31 @@ if (interaction.commandName === 'reset-season') {
   });
 }
 
+// /update-field
+if (interaction.commandName === 'update-field') {
+  // samo staff
+  if (!interaction.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
+    return interaction.reply({
+      content: '⛔ Samo staff može uređivati polja.',
+      ephemeral: true,
+    });
+  }
+
+  const modal = new ModalBuilder()
+    .setCustomId('update_field_step1')
+    .setTitle('Uredi polje – Korak 1');
+
+  const input = new TextInputBuilder()
+    .setCustomId('old_field')
+    .setLabel('Koje polje želiš editovati? (npr. 5)')
+    .setStyle(TextInputStyle.Short)
+    .setRequired(true);
+
+  const row = new ActionRowBuilder().addComponents(input);
+  modal.addComponents(row);
+
+  await interaction.showModal(modal);
+}
 
 
  }
@@ -2428,6 +2453,40 @@ if (!task.cropName) {
       activeTasks.delete(interaction.user.id);
       return;
     }
+
+    // === UPDATE FIELD – STEP 2 ===
+if (interaction.customId.startsWith('update_field_step2_')) {
+  const oldField = interaction.customId.replace('update_field_step2_', '');
+  const newField = interaction.fields.getTextInputValue('new_field').trim();
+
+  const fields = getFarmingFields();
+
+  const index = fields.indexOf(oldField);
+  if (index === -1) {
+    return interaction.reply({
+      content: `❌ Greška: polje **${oldField}** više ne postoji.`,
+      ephemeral: true,
+    });
+  }
+
+  // provjera duplikata
+  if (fields.includes(newField)) {
+    return interaction.reply({
+      content: `⚠️ Polje **${newField}** već postoji u listi.`,
+      ephemeral: true,
+    });
+  }
+
+  // ažuriranje
+  fields[index] = newField;
+  saveFarmingFields(fields);
+
+  return interaction.reply({
+    content: `✅ Polje **${oldField}** je uspješno promijenjeno u **${newField}**.`,
+    ephemeral: true,
+  });
+}
+
 
     // Kombajniranje
     if (interaction.customId === 'task_harvest_modal') {

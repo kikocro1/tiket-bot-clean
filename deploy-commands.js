@@ -49,6 +49,8 @@ new SlashCommandBuilder()
     .setName('list-fields')
     .setDescription('Prikaži sva polja koja su dostupna u task-panelu.'),
 
+    
+
   // 🧑‍🌾 panel s gumbom "Dodaj novo polje"
   new SlashCommandBuilder()
     .setName('field-panel')
