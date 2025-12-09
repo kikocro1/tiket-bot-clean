@@ -250,13 +250,23 @@ function createNewSeason() {
 
 // uzmi aktivnu sezonu ili kreiraj novu
 function getActiveSeason() {
-  const seasons = getSowingSeasons();
-  if (!seasons.length) return createNewSeason();
+    const seasons = getSowingSeasons();
 
-  const last = seasons[seasons.length - 1];
-  if (last.completed) return createNewSeason();
-  return last;
+    if (!seasons.length) {
+        const created = createNewSeason();
+        return created;
+    }
+
+    const last = seasons[seasons.length - 1];
+
+    if (last.completed) {
+        const newSeason = createNewSeason();
+        return newSeason;
+    }
+
+    return last;
 }
+
 
 // generisanje progress bara
 function makeSeasonProgressBar(current, total) {
@@ -279,14 +289,20 @@ async function updateSeasonEmbed(guild) {
 
   if (!channel) return;
 
+    // PRIKAZUJEMO SAMO POSIJANA POLJA
   const lines = [];
+
   for (const f of fields) {
     if (season.fields[f]) {
       lines.push(`**Polje ${f}** — ${season.fields[f]}`);
-    } else {
-      lines.push(`~~Polje ${f} — nije posijano~~`);
     }
   }
+
+  // ako još ništa nije posijano
+  if (lines.length === 0) {
+    lines.push("_Još ništa nije posijano..._");
+  }
+
 
   const progress = makeSeasonProgressBar(sownCount, total);
 
@@ -353,26 +369,33 @@ if (!msg) {
   }
 }
 
-// funkcija koja se poziva kada se kreira novi posao za sijanje
+// =====================
+//  SOWING – Upis polja u sezonu
+// =====================
 async function handleNewSowingTask(guild, field, cropName) {
     const seasons = getSowingSeasons();
     let season = getActiveSeason();
 
-    // ako nema aktivne sezone → kreiraj
-    if (!season) {
-        season = createNewSeason();
-        seasons.push(season);
+    // pronađi pravi season objekt
+    const idx = seasons.findIndex(s => s.season === season.season);
+    if (idx === -1) {
+        console.log("⚠️ Sezona nije pronađena u listi!");
+        return;
     }
 
-    // upiši kulturu u polje
-    season.fields[field] = cropName;
+    // upis kulture
+    seasons[idx].fields[field] = cropName;
 
-    // spremi sezonsku listu
+    // spremi u db.json
     saveSowingSeasons(seasons);
 
-    // update Discord embed
+    console.log(`🌱 Upis sjetve → Sezona ${season.season}, Polje ${field}: ${cropName}`);
+
+    // osvježavanje embeda
     await updateSeasonEmbed(guild);
 }
+
+
 
 
 
