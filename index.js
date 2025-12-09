@@ -2115,11 +2115,17 @@ if (!task.cropName) {
 
 
     try {
-      await handleNewSowingTask(interaction.guild, task.field, cropName);
-      console.log(`🌾 Ručno završavanje sjetve → Polje ${task.field}: ${cropName}`);
-    } catch (err) {
-      console.error("❌ Greška pri ručnom upisu sjetve:", err);
-    }
+    console.log("➡ Pokrećem ručni upis sjetve u sezonu...");
+    await handleNewSowingTask(interaction.guild, task.field, cropName);
+    console.log(`🌾 Ručno završavanje sjetve → Polje ${task.field}: ${cropName}`);
+
+    // 🔥 PRISILNI REFRESH EMBEDA
+    await updateSeasonEmbed(interaction.guild);
+    console.log("🌾 Embed sezone ručno osvježen.");
+} catch (err) {
+    console.error("❌ Greška pri ručnom upisu sjetve:", err);
+}
+
   }
 
   // 🔄 GENERIRAJ NOVI EMBED O ZAVRŠETKU
