@@ -1715,7 +1715,8 @@ if (interaction.commandName === 'update-field') {
   const row = new ActionRowBuilder().addComponents(input);
   modal.addComponents(row);
 
-  await interaction.showModal(modal);
+  return interaction.showModal(modal);
+
 }
 
 
