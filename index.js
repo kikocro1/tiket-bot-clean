@@ -2312,6 +2312,7 @@ if (interaction.customId === 'task_done') {
         field: current.field,
         jobKey: 'sijanje',
         jobName: 'Sijanje',
+        cropName: seedName,
         status: 'open',
         fromFs: false,
         channelId: jobChannel.id,
