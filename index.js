@@ -277,7 +277,7 @@ function makeSeasonProgressBar(current, total) {
 }
 
 // update ili kreiranje embed poruke u sezoni
-async function updateSeasonEmbed(guild) {
+async function updateSeasonEmbed(guild, forceEmpty = false) {
   const season = getActiveSeason();
   const fields = getFarmingFields();
   const total = fields.length;
@@ -289,7 +289,46 @@ async function updateSeasonEmbed(guild) {
 
   if (!channel) return;
 
-    // PRIKAZUJEMO SAMO POSIJANA POLJA
+  // -------------------------------------------------------
+  // 1️⃣ FORCE RESET MODE → prazan embed bez polja
+  // -------------------------------------------------------
+  if (forceEmpty === true) {
+    const emptyEmbed = new EmbedBuilder()
+      .setColor("#3ba55d")
+      .setTitle(`🌾 Sezona Sjetve #${season.season}`)
+      .setDescription("_Još nema posijanih polja..._")
+      .addFields({
+        name: "Progres",
+        value: `0/${total}\n${makeSeasonProgressBar(0, total)}`
+      })
+      .setTimestamp();
+
+    // Ako embed postoji, osvježi ga
+    if (season.messageId) {
+      const msg = await channel.messages.fetch(season.messageId).catch(() => null);
+      if (msg) {
+        await msg.edit({ embeds: [emptyEmbed] });
+        return;
+      }
+    }
+
+    // ili kreiraj novi embed ako ga nema
+    const sent = await channel.send({ embeds: [emptyEmbed] });
+    season.messageId = sent.id;
+
+    const seasons = getSowingSeasons();
+    const idx = seasons.findIndex(s => s.season === season.season);
+    if (idx !== -1) {
+      seasons[idx] = season;
+      saveSowingSeasons(seasons);
+    }
+
+    return;
+  }
+
+  // -------------------------------------------------------
+  // 2️⃣ NORMALNI MODE → prikaz samo posijanih polja
+  // -------------------------------------------------------
   const lines = [];
 
   for (const f of fields) {
@@ -298,9 +337,9 @@ async function updateSeasonEmbed(guild) {
     }
   }
 
-  // ako još ništa nije posijano
+
   if (lines.length === 0) {
-    lines.push("_Još nema poslova za sjetvu..._");
+    lines.push("_Još nema posijanih polja..._");
   }
 
 
@@ -316,44 +355,40 @@ async function updateSeasonEmbed(guild) {
     })
     .setTimestamp();
 
-  // ako embed poruka još ne postoji → kreiramo je
-if (!season.messageId) {
+  // Ako embed još ne postoji — kreiraj ga
+  if (!season.messageId) {
     const sent = await channel.send({ embeds: [embed] });
     season.messageId = sent.id;
-    
-    const seasons = getSowingSeasons();
-    const idx = seasons.findIndex(s => s.season === season.season);
-    if (idx !== -1) {
-        seasons[idx] = season;
-        saveSowingSeasons(seasons);
-    }
-    return;
-}
-
-
-  // inače samo ažuriramo postojeći embed
-const msg = await channel.messages
-  .fetch(season.messageId)
-  .catch(() => null);
-
-if (!msg) {
-    const m = await channel.send({ embeds: [embed] });
-    season.messageId = m.id;
 
     const seasons = getSowingSeasons();
     const idx = seasons.findIndex(s => s.season === season.season);
     if (idx !== -1) {
-        seasons[idx] = season;
-        saveSowingSeasons(seasons);
+      seasons[idx] = season;
+      saveSowingSeasons(seasons);
+    }
+    return;
+  }
+
+  // Inače — osvježi embed
+  const msg = await channel.messages.fetch(season.messageId).catch(() => null);
+
+  if (!msg) {
+    const sent = await channel.send({ embeds: [embed] });
+    season.messageId = sent.id;
+
+    const seasons = getSowingSeasons();
+    const idx = seasons.findIndex(s => s.season === season.season);
+    if (idx !== -1) {
+      seasons[idx] = season;
+      saveSowingSeasons(seasons);
     }
 
     return;
-}
-
+  }
 
   await msg.edit({ embeds: [embed] });
 
-  // ako je sezona završena → zaključavamo je
+  // Završetak sezone
   if (sownCount >= total && !season.completed) {
     season.completed = true;
     saveSowingSeasons(getSowingSeasons());
@@ -364,7 +399,7 @@ if (!msg) {
 
     await msg.edit({ embeds: [doneEmbed] });
 
-    // automatski kreiramo novu sezonu
+    
     createNewSeason();
   }
 }
@@ -1628,28 +1663,33 @@ client.on('interactionCreate', async (interaction) => {
 
     // /reset-season – resetira aktivnu sezonu sjetve
 if (interaction.commandName === 'reset-season') {
-    if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
-        return interaction.reply({
-            content: '⛔ Nemaš permisije za reset sezone.',
-            ephemeral: true,
-        });
-    }
-
-    const seasons = getSowingSeasons();
-    const active = getActiveSeason();
-
-    active.fields = {};      
-    active.completed = false;
-
-    saveSowingSeasons(seasons);
-
-    await updateSeasonEmbed(interaction.guild);
-
+  if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
     return interaction.reply({
-        content: '🔄 Sezona resetirana! Embed očišćen.',
-        ephemeral: true,
+      content: '⛔ Nemaš permisije za reset sezone.',
+      ephemeral: true,
     });
+  }
+
+  // učitaj sve sezone
+  const seasons = getSowingSeasons();
+  const active = getActiveSeason();
+
+  // resetiraj sezonu
+  active.fields = {};
+  active.completed = false;
+
+  // spremi u db.json
+  saveSowingSeasons(seasons);
+
+  // FORSIRAJ PRAZAN EMBED (100% radi)
+  await updateSeasonEmbed(interaction.guild, true);
+
+  return interaction.reply({
+    content: '🔄 Sezona resetirana! Embed očišćen.',
+    ephemeral: true,
+  });
 }
+
 
  }
 
