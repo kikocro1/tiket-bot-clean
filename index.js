@@ -208,7 +208,7 @@ function saveFarmingFields(fields) {
 // =====================
 
 // ID kanala gdje ide živa embed poruka
-const SOWING_SEASON_CHANNEL_ID = "1447710723051622431";
+const SOWING_SEASON_CHANNEL_ID = "1437698436068671528";
 
 // učitaj ili kreiraj listu sezona
 function getSowingSeasons() {
@@ -665,9 +665,7 @@ app.post('/dashboard/tickets', (req, res) => {
   res.redirect('/dashboard?tab=tickets');
 });
 
-// =====================
-//  FS WEBHOOK – helper za provjeru secreta
-// =====================
+
 // =====================
 //  FS WEBHOOK – helper za provjeru secreta
 // =====================
