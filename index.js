@@ -2455,38 +2455,111 @@ if (!task.cropName) {
       return;
     }
 
-    // === UPDATE FIELD – STEP 2 ===
-if (interaction.customId.startsWith('update_field_step2_')) {
-  const oldField = interaction.customId.replace('update_field_step2_', '');
-  const newField = interaction.fields.getTextInputValue('new_field').trim();
+    // === UPDATE FIELD – STEP 2 (kompletan rename sistema) ===
+if (interaction.customId.startsWith("update_field_step2_")) {
+    const oldField = interaction.customId.replace("update_field_step2_", "");
+    const newField = interaction.fields.getTextInputValue("new_field").trim();
 
-  const fields = getFarmingFields();
+    // === 1) Učitaj listu polja
+    const fields = getFarmingFields();
+    const index = fields.indexOf(oldField);
 
-  const index = fields.indexOf(oldField);
-  if (index === -1) {
+    if (index === -1) {
+        return interaction.reply({
+            content: `❌ Greška: polje **${oldField}** više ne postoji.`,
+            ephemeral: true,
+        });
+    }
+
+    if (fields.includes(newField)) {
+        return interaction.reply({
+            content: `⚠️ Polje **${newField}** već postoji.`,
+            ephemeral: true,
+        });
+    }
+
+    // zamijeni u listi polja
+    fields[index] = newField;
+    saveFarmingFields(fields);
+
+    // === 2) Učitaj DB jer mijenjamo još stvari
+    const db = loadDb();
+
+    // === 3) Update u svim farmingTasks
+    for (const t of db.farmingTasks) {
+        if (t.field === oldField) {
+            t.field = newField;
+        }
+    }
+
+    // odmah spremi
+    saveDb(db);
+
+
+    // === 4) Update embed poruka zadataka (aktivni + završeni)
+    async function updateTaskEmbeds() {
+        const guild = interaction.guild;
+
+        // aktivni channel
+        const jobCh = await guild.channels.fetch(FS_JOB_CHANNEL_ID).catch(() => null);
+        const doneCh = await guild.channels.fetch(FS_JOB_DONE_CHANNEL_ID).catch(() => null);
+
+        const allTasks = db.farmingTasks.filter(t => t.field === newField);
+
+        for (const t of allTasks) {
+            const ch = t.status === "open" ? jobCh : doneCh;
+            if (!ch) continue;
+
+            const msg = await ch.messages.fetch(t.messageId).catch(() => null);
+            if (!msg || !msg.embeds[0]) continue;
+
+            let embed = EmbedBuilder.from(msg.embeds[0]);
+
+            // Regex: zamjenjuje bilo koji oblik "Polje ... oldField"
+            const regex = new RegExp(`Polje\\s*[:\\-]*\\s*${oldField}`, "i");
+
+            embed = embed.toJSON(); // lakše manipulirati
+
+            if (embed.fields) {
+                for (const f of embed.fields) {
+                    if (regex.test(f.value)) {
+                        f.value = f.value.replace(regex, `Polje ${newField}`);
+                    }
+                }
+            }
+
+            await msg.edit({ embeds: [embed] });
+        }
+    }
+
+    await updateTaskEmbeds();
+
+
+    // === 5) Update Sowing Season (mora promijeniti ključ)
+    const seasons = getSowingSeasons();
+    for (const season of seasons) {
+        if (season.fields && season.fields[oldField]) {
+            season.fields[newField] = season.fields[oldField];
+            delete season.fields[oldField];
+        }
+    }
+    saveSowingSeasons(seasons);
+
+
+    // === 6) Refresh živog embed-a sezone
+    try {
+        await updateSeasonEmbed(interaction.guild);
+    } catch (e) {
+        console.log("Greška refresh sezone:", e);
+    }
+
+
     return interaction.reply({
-      content: `❌ Greška: polje **${oldField}** više ne postoji.`,
-      ephemeral: true,
+        content: `✅ Polje **${oldField}** je uspješno preimenovano u **${newField}**.\n\nSve poruke, zadaci i sezona su ažurirani.`,
+        ephemeral: true,
     });
-  }
-
-  // provjera duplikata
-  if (fields.includes(newField)) {
-    return interaction.reply({
-      content: `⚠️ Polje **${newField}** već postoji u listi.`,
-      ephemeral: true,
-    });
-  }
-
-  // ažuriranje
-  fields[index] = newField;
-  saveFarmingFields(fields);
-
-  return interaction.reply({
-    content: `✅ Polje **${oldField}** je uspješno promijenjeno u **${newField}**.`,
-    ephemeral: true,
-  });
 }
+
 
 
     // Kombajniranje
