@@ -38,6 +38,12 @@ const commands = [
         .setRequired(true)
     ),
 
+    // 🌾 resetira sezonu sjetve (briše posijana polja, embed ostaje)
+new SlashCommandBuilder()
+  .setName('reset-season')
+  .setDescription('Resetira aktivnu sezonu sjetve.'),
+
+
   // 📋 prikaže trenutnu listu polja (ephemeral)
   new SlashCommandBuilder()
     .setName('list-fields')

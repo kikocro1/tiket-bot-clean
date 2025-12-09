@@ -300,7 +300,7 @@ async function updateSeasonEmbed(guild) {
 
   // ako još ništa nije posijano
   if (lines.length === 0) {
-    lines.push("_Još ništa nije posijano..._");
+    lines.push("_Još nema poslova za sjetvu..._");
   }
 
 
@@ -1605,6 +1605,36 @@ client.on('interactionCreate', async (interaction) => {
           ephemeral: true,
         });
       }
+
+          // /reset-season – resetira aktivnu sezonu sjetve
+    if (interaction.commandName === 'reset-season') {
+      // samo admin / staff
+      if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
+        return interaction.reply({
+          content: '⛔ Nemaš permisije za reset sezone.',
+          ephemeral: true,
+        });
+      }
+
+      const seasons = getSowingSeasons();
+      const active = getActiveSeason();
+
+      // obriši sva posijana polja
+      active.fields = {};
+      active.completed = false;
+
+      // spremi promjene u db.json
+      saveSowingSeasons(seasons);
+
+      // osvježi embed
+      await updateSeasonEmbed(interaction.guild);
+
+      return interaction.reply({
+        content: '🔄 Sezona je resetirana! Živi embed je očišćen.',
+        ephemeral: true,
+      });
+    }
+
 
       const embed = new EmbedBuilder()
         .setColor('#3ba55d')
