@@ -1605,49 +1605,7 @@ client.on('interactionCreate', async (interaction) => {
           ephemeral: true,
         });
       }
-
-              // /reset-season – resetira aktivnu sezonu sjetve
-    if (interaction.commandName === 'reset-season') {
-      if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
-        return interaction.reply({
-          content: '⛔ Nemaš permisije za reset sezone.',
-          ephemeral: true,
-        });
-      }
-
-      const seasons = getSowingSeasons();
-      const active = getActiveSeason();
-
-      active.fields = {};     // reset polja
-      active.completed = false;
-
-      saveSowingSeasons(seasons);
-
-      await updateSeasonEmbed(interaction.guild);
-
-      return interaction.reply({
-        content: '🔄 Sezona resetirana! Embed očišćen.',
-        ephemeral: true,
-      });
-    }
-
-
-      // obriši sva posijana polja
-      active.fields = {};
-      active.completed = false;
-
-      // spremi promjene u db.json
-      saveSowingSeasons(seasons);
-
-      // osvježi embed
-      await updateSeasonEmbed(interaction.guild);
-
-      return interaction.reply({
-        content: '🔄 Sezona je resetirana! Živi embed je očišćen.',
-        ephemeral: true,
-      });
-    }
-
+      
 
       const embed = new EmbedBuilder()
         .setColor('#3ba55d')
@@ -1667,7 +1625,33 @@ client.on('interactionCreate', async (interaction) => {
 
       await interaction.reply({ embeds: [embed], components: [row] });
     }
-  }
+
+    // /reset-season – resetira aktivnu sezonu sjetve
+if (interaction.commandName === 'reset-season') {
+    if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
+        return interaction.reply({
+            content: '⛔ Nemaš permisije za reset sezone.',
+            ephemeral: true,
+        });
+    }
+
+    const seasons = getSowingSeasons();
+    const active = getActiveSeason();
+
+    active.fields = {};      
+    active.completed = false;
+
+    saveSowingSeasons(seasons);
+
+    await updateSeasonEmbed(interaction.guild);
+
+    return interaction.reply({
+        content: '🔄 Sezona resetirana! Embed očišćen.',
+        ephemeral: true,
+    });
+}
+
+ }
 
   // ---------- KREIRANJE TIKETA (dropdown) ----------
   if (
