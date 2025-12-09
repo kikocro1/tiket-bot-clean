@@ -34,7 +34,11 @@ const FS_WEBHOOK_SECRET = process.env.FS_WEBHOOK_SECRET;
 //  "DB" PREKO JSON FAJLA (za dashboard: welcome/logging/embeds/tickets)
 // =====================
 
-const dbFile = path.join(__dirname, 'db.json');
+const dbDir = path.join(__dirname, 'data');
+if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir);
+
+const dbFile = path.join(dbDir, 'db.json');
+
 
 // default postavke za ticket sistem (za dashboard)
 const DEFAULT_TICKET_SYSTEM = {

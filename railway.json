@@ -1,0 +1,14 @@
+{
+  "build": {
+    "builder": "NIXPACKS"
+  },
+  "deploy": {
+    "startCommand": "node index.js"
+  },
+  "volumes": [
+    {
+      "mountPath": "/app/data",
+      "sizeGB": 1
+    }
+  ]
+}
