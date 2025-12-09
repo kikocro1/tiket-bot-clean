@@ -1606,9 +1606,8 @@ client.on('interactionCreate', async (interaction) => {
         });
       }
 
-          // /reset-season – resetira aktivnu sezonu sjetve
+              // /reset-season – resetira aktivnu sezonu sjetve
     if (interaction.commandName === 'reset-season') {
-      // samo admin / staff
       if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
         return interaction.reply({
           content: '⛔ Nemaš permisije za reset sezone.',
@@ -1618,6 +1617,20 @@ client.on('interactionCreate', async (interaction) => {
 
       const seasons = getSowingSeasons();
       const active = getActiveSeason();
+
+      active.fields = {};     // reset polja
+      active.completed = false;
+
+      saveSowingSeasons(seasons);
+
+      await updateSeasonEmbed(interaction.guild);
+
+      return interaction.reply({
+        content: '🔄 Sezona resetirana! Embed očišćen.',
+        ephemeral: true,
+      });
+    }
+
 
       // obriši sva posijana polja
       active.fields = {};
