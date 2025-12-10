@@ -48,58 +48,9 @@
       "autoClose": "Ticket je automatski zatvoren jer 48 sati nije bilo aktivnosti. Ako i dalje trebaš pomoć, slobodno otvori novi ticket. 🙂"
     }
   },
-  "farmingTasks": [
-    {
-      "field": "34",
-      "jobKey": "sijanje",
-      "jobName": "Sijanje",
-      "cropName": "kukuruz",
-      "status": "open",
-      "fromFs": false,
-      "channelId": "1442984129699254292",
-      "messageId": "1448048614759727196",
-      "createdBy": "994960078128029698",
-      "createdAt": "2025-12-09T20:28:04.903Z"
-    },
-    {
-      "field": "34",
-      "jobKey": "sijanje",
-      "jobName": "Sijanje",
-      "cropName": "kukuruz",
-      "status": "open",
-      "fromFs": false,
-      "channelId": "1442984129699254292",
-      "messageId": "1448050158792212616",
-      "createdBy": "994960078128029698",
-      "createdAt": "2025-12-09T20:34:12.883Z"
-    },
-    {
-      "field": "34",
-      "jobKey": "sijanje",
-      "jobName": "Sijanje",
-      "cropName": "kukuruz",
-      "status": "open",
-      "fromFs": false,
-      "channelId": "1442984129699254292",
-      "messageId": "1448053086433054760",
-      "createdBy": "994960078128029698",
-      "createdAt": "2025-12-09T20:45:50.914Z"
-    },
-    {
-      "field": "17",
-      "jobKey": "sijanje",
-      "jobName": "Sijanje",
-      "cropName": "psenica",
-      "status": "open",
-      "fromFs": false,
-      "channelId": "1442984129699254292",
-      "messageId": "1448055937079316562",
-      "createdBy": "994960078128029698",
-      "createdAt": "2025-12-09T20:57:10.619Z"
-    }
-  ],
+  "farmingTasks": [],
   "farmingFields": [
-    "5",
+    "1-2-3-4-5",
     "16",
     "17",
     "33",
@@ -108,19 +59,16 @@
     "36",
     "37",
     "6-7-8-11",
-    "30-31",
-    "2-3",
-    "24-23"
+    "30-31", 
+    "24-23",
+    "59-60-38"
   ],
   "sowingSeasons": [
     {
       "season": 1,
       "messageId": "1448064702864293940",
       "completed": false,
-      "fields": {
-        "17": "psenica",
-        "34": "kukuruz"
-      },
+      "fields": {},
       "createdAt": 1765311136383
     }
   ]
