@@ -21,10 +21,6 @@ const {
   TextInputStyle,
 } = require('discord.js');
 
-const { version } = require("discord.js");
-console.log("🔍 Discord.js verzija:", version);
-
-
 // 🔹 ENV varijable
 const token = process.env.TOKEN;
 const clientId = process.env.CLIENT_ID;
@@ -1469,20 +1465,6 @@ client.on('messageCreate', (message) => {
 
 // ============== SLASH KOMANDE + INTERAKCIJE ==============
 client.on('interactionCreate', async (interaction) => {
-
-// ==========================================
-//  PROTECTION LAYER (Railway fake interactions)
-// ==========================================
-if (!interaction || !interaction.user || !interaction.guild) {
-    return; // tiho ignoriraj
-}
-
-// Ako interakcija ne podržava showModal (hosting glitch) – tiho ignoriši
-if (interaction.isModalSubmit && typeof interaction.showModal !== "function") {
-    return;
-}
-
-
   // ---------- SLASH KOMANDE ----------
   if (interaction.isChatInputCommand()) {
     // /ticket-panel
@@ -1708,9 +1690,37 @@ if (interaction.commandName === 'reset-season') {
     content: '🔄 Sezona resetirana! Živi embed je očišćen.',
     ephemeral: true,
   });
-} 
+}
+
+// /update-field
+if (interaction.commandName === 'update-field') {
+  // samo staff
+  if (!interaction.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
+    return interaction.reply({
+      content: '⛔ Samo staff može uređivati polja.',
+      ephemeral: true,
+    });
+  }
+
+  const modal = new ModalBuilder()
+    .setCustomId('update_field_step1')
+    .setTitle('Uredi polje – Korak 1');
+
+  const input = new TextInputBuilder()
+    .setCustomId('old_field')
+    .setLabel('Koje polje želiš editovati? (npr. 5)')
+    .setStyle(TextInputStyle.Short)
+    .setRequired(true);
+
+  const row = new ActionRowBuilder().addComponents(input);
+  modal.addComponents(row);
+
+  return interaction.showModal(modal);
 
 }
+
+
+ }
 
   // ---------- KREIRANJE TIKETA (dropdown) ----------
   if (
@@ -2295,7 +2305,7 @@ if (!task.cropName) {
 
       if (interaction.customId === 'ticket_close') {
         await interaction.reply({
-          content: '🔒 Ticket je zatvoren. A kanal je označen kao zatvoren.',
+          content: '🔒 Ticket je zatvoren. Kanal je označen kao zatvoren.',
           ephemeral: true,
         });
 
@@ -2340,70 +2350,41 @@ if (!task.cropName) {
     }
   }
 
-  // ---------- MODALI (FIELD ADD + SIJANJE + KOMBAJNIRANJE + UPDATE FIELD) ----------
-if (interaction.isModalSubmit()) {
-
-    // === UPDATE FIELD – STEP 1 ===
-    if (interaction.customId === "update_field_step1") {
-        const oldField = interaction.fields.getTextInputValue("old_field").trim();
-        const fields = getFarmingFields();
-
-        if (!fields.includes(oldField)) {
-            return interaction.reply({
-                content: `❌ Polje **${oldField}** ne postoji u listi.`,
-                ephemeral: true,
-            });
-        }
-
-        const modal = new ModalBuilder()
-            .setCustomId(`update_field_step2_${oldField}`)
-            .setTitle("Uredi polje – Korak 2");
-
-        const input = new TextInputBuilder()
-            .setCustomId("new_field")
-            .setLabel(`Novo ime za polje ${oldField}`)
-            .setStyle(TextInputStyle.Short)
-            .setRequired(true);
-
-        modal.addComponents(new ActionRowBuilder().addComponents(input));
-
-        return interaction.showModal(modal);
-    }
-
-    // === DODAVANJE POLJA (field_add_modal) ===
+  // ---------- MODALI (FIELD ADD + SIJANJE + KOMBAJNIRANJE) ----------
+  if (interaction.isModalSubmit()) {
+    // Dodavanje novog polja
     if (interaction.customId === 'field_add_modal') {
-        if (!interaction.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
-            return interaction.reply({
-                content: '⛔ Samo staff/admin može dodavati polja.',
-                ephemeral: true,
-            });
-        }
-
-        const value = interaction.fields.getTextInputValue('field_value').trim();
-
-        if (!value) {
-            return interaction.reply({
-                content: '⚠️ Moraš upisati oznaku polja.',
-                ephemeral: true,
-            });
-        }
-
-        const fields = getFarmingFields();
-
-        if (fields.includes(value)) {
-            return interaction.reply({
-                content: `⚠️ Polje **${value}** već postoji u listi.`,
-                ephemeral: true,
-            });
-        }
-
-        fields.push(value);
-        saveFarmingFields(fields);
-
+      if (!interaction.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
         return interaction.reply({
-            content: `✅ Polje **${value}** je dodano u listu. Dostupno je u task-panelu.`,
-            ephemeral: true,
+          content: '⛔ Samo staff/admin može dodavati polja.',
+          ephemeral: true,
         });
+      }
+
+      const value = interaction.fields.getTextInputValue('field_value').trim();
+
+      if (!value) {
+        return interaction.reply({
+          content: '⚠️ Moraš upisati oznaku polja.',
+          ephemeral: true,
+        });
+      }
+
+      const fields = getFarmingFields();
+      if (fields.includes(value)) {
+        return interaction.reply({
+          content: `⚠️ Polje **${value}** već postoji u listi.`,
+          ephemeral: true,
+        });
+      }
+
+      fields.push(value);
+      saveFarmingFields(fields);
+
+      return interaction.reply({
+        content: `✅ Polje **${value}** je dodano u listu. Dostupno je u task-panelu.`,
+        ephemeral: true,
+      });
     }
 
 
@@ -2649,7 +2630,5 @@ if (interaction.customId.startsWith("update_field_step2_")) {
 
 client.login(token).catch((err) => {
   console.error('❌ Login error:', err);
-
-  console.log("Discord.js version running:", require("discord.js").version);
-
+  
 });
