@@ -2350,42 +2350,72 @@ if (!task.cropName) {
     }
   }
 
-  // ---------- MODALI (FIELD ADD + SIJANJE + KOMBAJNIRANJE) ----------
-  if (interaction.isModalSubmit()) {
-    // Dodavanje novog polja
-    if (interaction.customId === 'field_add_modal') {
-      if (!interaction.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
-        return interaction.reply({
-          content: '⛔ Samo staff/admin može dodavati polja.',
-          ephemeral: true,
-        });
-      }
+  // ---------- MODALI (FIELD ADD + SIJANJE + KOMBAJNIRANJE + UPDATE FIELD) ----------
+if (interaction.isModalSubmit()) {
 
-      const value = interaction.fields.getTextInputValue('field_value').trim();
+    // === UPDATE FIELD – STEP 1 ===
+    if (interaction.customId === "update_field_step1") {
+        const oldField = interaction.fields.getTextInputValue("old_field").trim();
+        const fields = getFarmingFields();
 
-      if (!value) {
-        return interaction.reply({
-          content: '⚠️ Moraš upisati oznaku polja.',
-          ephemeral: true,
-        });
-      }
+        if (!fields.includes(oldField)) {
+            return interaction.reply({
+                content: `❌ Polje **${oldField}** ne postoji u listi.`,
+                ephemeral: true,
+            });
+        }
 
-      const fields = getFarmingFields();
-      if (fields.includes(value)) {
-        return interaction.reply({
-          content: `⚠️ Polje **${value}** već postoji u listi.`,
-          ephemeral: true,
-        });
-      }
+        const modal = new ModalBuilder()
+            .setCustomId(`update_field_step2_${oldField}`)
+            .setTitle("Uredi polje – Korak 2");
 
-      fields.push(value);
-      saveFarmingFields(fields);
+        const input = new TextInputBuilder()
+            .setCustomId("new_field")
+            .setLabel(`Novo ime za polje ${oldField}`)
+            .setStyle(TextInputStyle.Short)
+            .setRequired(true);
 
-      return interaction.reply({
-        content: `✅ Polje **${value}** je dodano u listu. Dostupno je u task-panelu.`,
-        ephemeral: true,
-      });
+        modal.addComponents(new ActionRowBuilder().addComponents(input));
+
+        return interaction.showModal(modal);
     }
+
+    // === DODAVANJE POLJA (field_add_modal) ===
+    if (interaction.customId === 'field_add_modal') {
+        if (!interaction.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
+            return interaction.reply({
+                content: '⛔ Samo staff/admin može dodavati polja.',
+                ephemeral: true,
+            });
+        }
+
+        const value = interaction.fields.getTextInputValue('field_value').trim();
+
+        if (!value) {
+            return interaction.reply({
+                content: '⚠️ Moraš upisati oznaku polja.',
+                ephemeral: true,
+            });
+        }
+
+        const fields = getFarmingFields();
+
+        if (fields.includes(value)) {
+            return interaction.reply({
+                content: `⚠️ Polje **${value}** već postoji u listi.`,
+                ephemeral: true,
+            });
+        }
+
+        fields.push(value);
+        saveFarmingFields(fields);
+
+        return interaction.reply({
+            content: `✅ Polje **${value}** je dodano u listu. Dostupno je u task-panelu.`,
+            ephemeral: true,
+        });
+    }
+
 
     // Sijanje
     if (interaction.customId === 'task_sowing_modal') {
