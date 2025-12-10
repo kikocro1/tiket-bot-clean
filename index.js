@@ -1711,34 +1711,36 @@ if (interaction.commandName === 'reset-season') {
 }
 
 // /update-field
-if (interaction.commandName === 'update-field') {
-  // samo staff
-  if (!interaction.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
-    return interaction.reply({
-      content: '⛔ Samo staff može uređivati polja.',
-      ephemeral: true,
-    });
-  }
+if (interaction.customId === "update_field_step1") {
+    const oldField = interaction.fields.getTextInputValue("old_field").trim();
+    const fields = getFarmingFields();
 
-  const modal = new ModalBuilder()
-    .setCustomId('update_field_step1')
-    .setTitle('Uredi polje – Korak 1');
+    if (!fields.includes(oldField)) {
+        return interaction.reply({
+            content: `❌ Polje **${oldField}** ne postoji u listi.`,
+            ephemeral: true,
+        });
+    }
 
-  const input = new TextInputBuilder()
-    .setCustomId('old_field')
-    .setLabel('Koje polje želiš editovati? (npr. 5)')
-    .setStyle(TextInputStyle.Short)
-    .setRequired(true);
+    const modal = new ModalBuilder()
+        .setCustomId(`update_field_step2_${oldField}`)
+        .setTitle("Uredi polje – Korak 2");
 
-  const row = new ActionRowBuilder().addComponents(input);
-  modal.addComponents(row);
+    const input = new TextInputBuilder()
+        .setCustomId("new_field")
+        .setLabel(`Novo ime za polje ${oldField}`)
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true);
 
-  return interaction.showModal(modal);
+    modal.addComponents(new ActionRowBuilder().addComponents(input));
 
+    // KEY FIX
+    await interaction.deferUpdate();
+    return interaction.showModal(modal);
 }
 
 
- }
+}
 
   // ---------- KREIRANJE TIKETA (dropdown) ----------
   if (
