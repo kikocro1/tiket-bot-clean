@@ -1469,6 +1469,29 @@ client.on('messageCreate', (message) => {
 
 // ============== SLASH KOMANDE + INTERAKCIJE ==============
 client.on('interactionCreate', async (interaction) => {
+
+  // ==========================================
+//  PROTECTION LAYER (Railway fake interactions)
+// ==========================================
+if (!interaction || typeof interaction !== "object") {
+    console.log("⚠️ Invalid interaction object – dropped");
+    return;
+}
+
+if (!interaction.user || !interaction.guild) {
+    console.log("⚠️ Dropping non-user interaction (Railway ping).");
+    return;
+}
+
+// Ako interakcija ne podržava showModal, patch (discord.js v14 bug)
+if (interaction.isModalSubmit && typeof interaction.showModal !== "function") {
+    console.log("⚠️ Missing showModal method on interaction → patched.");
+    interaction.showModal = () => { 
+        console.log("⚠️ Tried to call showModal on unsupported interaction.");
+        return;
+    };
+}
+
   // ---------- SLASH KOMANDE ----------
   if (interaction.isChatInputCommand()) {
     // /ticket-panel
