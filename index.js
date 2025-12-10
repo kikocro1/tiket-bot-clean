@@ -1708,37 +1708,7 @@ if (interaction.commandName === 'reset-season') {
     content: '🔄 Sezona resetirana! Živi embed je očišćen.',
     ephemeral: true,
   });
-}
-
-// /update-field
-if (interaction.customId === "update_field_step1") {
-    const oldField = interaction.fields.getTextInputValue("old_field").trim();
-    const fields = getFarmingFields();
-
-    if (!fields.includes(oldField)) {
-        return interaction.reply({
-            content: `❌ Polje **${oldField}** ne postoji u listi.`,
-            ephemeral: true,
-        });
-    }
-
-    const modal = new ModalBuilder()
-        .setCustomId(`update_field_step2_${oldField}`)
-        .setTitle("Uredi polje – Korak 2");
-
-    const input = new TextInputBuilder()
-        .setCustomId("new_field")
-        .setLabel(`Novo ime za polje ${oldField}`)
-        .setStyle(TextInputStyle.Short)
-        .setRequired(true);
-
-    modal.addComponents(new ActionRowBuilder().addComponents(input));
-
-    // KEY FIX
-    await interaction.deferUpdate();
-    return interaction.showModal(modal);
-}
-
+} 
 
 }
 
