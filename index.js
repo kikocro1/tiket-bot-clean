@@ -21,6 +21,10 @@ const {
   TextInputStyle,
 } = require('discord.js');
 
+const { version } = require("discord.js");
+console.log("🔍 Discord.js verzija:", version);
+
+
 // 🔹 ENV varijable
 const token = process.env.TOKEN;
 const clientId = process.env.CLIENT_ID;
