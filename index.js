@@ -2305,7 +2305,7 @@ if (!task.cropName) {
 
       if (interaction.customId === 'ticket_close') {
         await interaction.reply({
-          content: '🔒 Ticket je zatvoren. Kanal je označen kao zatvoren.',
+          content: '🔒 Ticket je zatvoren. A kanal je označen kao zatvoren.',
           ephemeral: true,
         });
 
