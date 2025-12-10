@@ -2659,4 +2659,7 @@ if (interaction.customId.startsWith("update_field_step2_")) {
 
 client.login(token).catch((err) => {
   console.error('❌ Login error:', err);
+
+  console.log("Discord.js version running:", require("discord.js").version);
+
 });
