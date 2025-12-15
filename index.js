@@ -2059,6 +2059,7 @@ if (interaction.commandName === 'update-field') {
         components: [jobsRow1, jobsRow2, jobsRow3, jobsRow4],
       });
       return;
+      
     }
 
     // === FARMING: ODABIR POSLA (sve osim sijanja i kombajniranja s modalom) ===
@@ -2068,83 +2069,148 @@ if (interaction.commandName === 'update-field') {
       interaction.customId !== 'task_job_kombajniranje_modal'
     ) {
       const current = activeTasks.get(interaction.user.id);
-      if (!current || !current.field) {
-        await interaction.reply({
-          content:
-            '⚠️ Nije pronađeno polje. Pokušaj ponovno klikom na „Kreiraj posao“.',
-          ephemeral: true,
-        });
-        return;
-      }
 
-      const jobKey = interaction.customId.replace('task_job_', '');
-      const jobNames = {
-        oranje: 'Oranje',
-        lajn: 'Bacanje lajma',
-        djubrenje: 'Đubrenje',
-        tanjiranje: 'Tanjiranje',
-        podrivanje: 'Podrivanje',
-        herbicid: 'Prskanje herbicidom',
-        kosnja_trave: 'Košnja trave',
-        kosnja_djeteline: 'Košnja djeteline',
-        malciranje: 'Malčiranje',
-        spajanje: 'Spajanje polja',
-        baliranje: 'Baliranje',
-        skupljanje: 'Skupljanje u redove',
-        okretanje: 'Prevrtanje trave / djeteline',
-        zamotavanje: 'Zamotati bale za silažu',
-        zimska: 'Zimska brazda',
-        ceste: 'Čišćenje ceste',
-        rolanje: 'Rolanje polja',
-      };
-      const jobName = jobNames[jobKey] || jobKey;
 
-      const embed = new EmbedBuilder()
-        .setColor('#00a84d')
-        .setTitle('✅ Novi zadatak kreiran')
-        .addFields(
-          { name: 'Polje', value: `Polje ${current.field}`, inline: true },
-          { name: 'Posao', value: jobName, inline: true },
-          { name: 'Izradio', value: `<@${interaction.user.id}>`, inline: true }
-        )
-        .setTimestamp();
+if (!current || !current.field) {
+  return interaction.reply({
+    content: '⚠️ Nije pronađeno polje.',
+    ephemeral: true,
+  });
+}
 
-      const doneRow = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId('task_done')
-          .setLabel('✅ Završi zadatak')
-          .setStyle(ButtonStyle.Success)
-      );
+const jobKey = interaction.customId.replace('task_job_', '');
+const jobNames = {
+  oranje: 'Oranje',
+  lajn: 'Bacanje lajma',
+  djubrenje: 'Đubrenje',
+  tanjiranje: 'Tanjiranje',
+  podrivanje: 'Podrivanje',
+  herbicid: 'Prskanje herbicidom',
+  kosnja_trave: 'Košnja trave',
+  kosnja_djeteline: 'Košnja djeteline',
+  malciranje: 'Malčiranje',
+  spajanje: 'Spajanje polja',
+  baliranje: 'Baliranje',
+  skupljanje: 'Skupljanje u redove',
+  okretanje: 'Prevrtanje trave / djeteline',
+  zamotavanje: 'Zamotati bale za silažu',
+  zimska: 'Zimska brazda',
+  ceste: 'Čišćenje ceste',
+  rolanje: 'Rolanje polja',
+};
 
-      const jobChannel = await interaction.guild.channels.fetch(
-        FS_JOB_CHANNEL_ID
-      );
+current.jobKey = jobKey;
+current.jobName = jobNames[jobKey] || jobKey;
+activeTasks.set(interaction.user.id, current);
 
-      await interaction.reply({
-        content: '✅ Zadatak je kreiran i objavljen u kanalu za poslove.',
-        ephemeral: true,
-      });
 
-      const sentMsg = await jobChannel.send({
-        embeds: [embed],
-        components: [doneRow],
-      });
+      // ⛔ OVDJE VIŠE NE KREIRAŠ ZADATAK
 
-      saveFarmingTask({
-        field: current.field,
-        jobKey,
-        jobName,
-        status: 'open',
-        fromFs: false,
-        channelId: jobChannel.id,
-        messageId: sentMsg.id,
-        createdBy: interaction.user.id,
-        createdAt: new Date().toISOString(),
-      });
+const embed = new EmbedBuilder()
+  .setColor('#5865f2')
+  .setTitle('🚦 Odaberi prioritet posla')
+  .setDescription(
+    `🚜 **Polje:** ${current.field}\n` +
+    `🛠️ **Posao:** ${current.jobName}\n\n` +
+    'Odaberi prioritet:'
+  );
 
-      activeTasks.delete(interaction.user.id);
-      return;
+const row = new ActionRowBuilder().addComponents(
+  new ButtonBuilder()
+    .setCustomId('task_priority_hitno')
+    .setLabel('🔴 HITNO')
+    .setStyle(ButtonStyle.Danger),
+  new ButtonBuilder()
+    .setCustomId('task_priority_visok')
+    .setLabel('🟠 Visok')
+    .setStyle(ButtonStyle.Primary),
+  new ButtonBuilder()
+    .setCustomId('task_priority_srednji')
+    .setLabel('🟡 Srednji')
+    .setStyle(ButtonStyle.Secondary),
+  new ButtonBuilder()
+    .setCustomId('task_priority_nizak')
+    .setLabel('🟢 Nizak')
+    .setStyle(ButtonStyle.Success)
+);
+
+// VAŽNO
+return interaction.update({
+  embeds: [embed],
+  components: [row],
+});
+
     }
+
+    // ==============================
+// 3️⃣ PRIORITET → KREIRANJE POSLA
+// ==============================
+if (interaction.customId.startsWith('task_priority_')) {
+  const current = activeTasks.get(interaction.user.id);
+  if (!current || !current.field || !current.jobName) {
+    return interaction.reply({
+      content: '⚠️ Nema aktivnog zadatka.',
+      ephemeral: true,
+    });
+  }
+
+  const priorities = {
+    hitno:   { label: '🔴 HITNO', value: 4, color: '#ff0000' },
+    visok:   { label: '🟠 Visok', value: 3, color: '#ffa500' },
+    srednji: { label: '🟡 Srednji', value: 2, color: '#ffd000' },
+    nizak:   { label: '🟢 Nizak', value: 1, color: '#3ba55d' },
+  };
+
+  const key = interaction.customId.replace('task_priority_', '');
+  const prio = priorities[key];
+  if (!prio) return;
+
+  const embed = new EmbedBuilder()
+    .setColor(prio.color)
+    .setTitle(`${prio.label} — Novi zadatak`)
+    .addFields(
+      { name: 'Polje', value: `Polje ${current.field}`, inline: true },
+      { name: 'Posao', value: current.jobName, inline: true },
+      { name: 'Izradio', value: `<@${interaction.user.id}>`, inline: true },
+    )
+    .setTimestamp();
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('task_done')
+      .setLabel('✅ Završi zadatak')
+      .setStyle(ButtonStyle.Success)
+  );
+
+  const jobChannel = await interaction.guild.channels.fetch(FS_JOB_CHANNEL_ID);
+  const sentMsg = await jobChannel.send({
+    embeds: [embed],
+    components: [row],
+  });
+
+  saveFarmingTask({
+    field: current.field,
+    jobKey: current.jobKey,
+    jobName: current.jobName,
+    priority: key,
+    priorityLabel: prio.label,
+    priorityValue: prio.value,
+    status: 'open',
+    fromFs: false,
+    channelId: jobChannel.id,
+    messageId: sentMsg.id,
+    createdBy: interaction.user.id,
+    createdAt: new Date().toISOString(),
+  });
+
+  activeTasks.delete(interaction.user.id);
+
+  return interaction.reply({
+    content: '✅ Zadatak je uspješno kreiran.',
+    ephemeral: true,
+  });
+}
+
 
     // === FARMING: Sijanje – otvaranje modala ===
     if (interaction.customId === 'task_job_sijanje') {

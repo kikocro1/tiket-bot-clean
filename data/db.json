@@ -48,7 +48,64 @@
       "autoClose": "Ticket je automatski zatvoren jer 48 sati nije bilo aktivnosti. Ako i dalje trebaš pomoć, slobodno otvori novi ticket. 🙂"
     }
   },
-  "farmingTasks": [],
+  "farmingTasks": [
+    {
+      "field": "16",
+      "jobKey": "tanjiranje",
+      "jobName": "Tanjiranje",
+      "priority": "hitno",
+      "priorityLabel": "🔴 HITNO",
+      "priorityValue": 4,
+      "status": "open",
+      "fromFs": false,
+      "channelId": "1442984129699254292",
+      "messageId": "1450168152649629867",
+      "createdBy": "994960078128029698",
+      "createdAt": "2025-12-15T16:50:26.212Z"
+    },
+    {
+      "field": "16",
+      "jobKey": "djubrenje",
+      "jobName": "Đubrenje",
+      "priority": "visok",
+      "priorityLabel": "🟠 Visok",
+      "priorityValue": 3,
+      "status": "open",
+      "fromFs": false,
+      "channelId": "1442984129699254292",
+      "messageId": "1450168333323206798",
+      "createdBy": "994960078128029698",
+      "createdAt": "2025-12-15T16:51:09.347Z"
+    },
+    {
+      "field": "16",
+      "jobKey": "podrivanje",
+      "jobName": "Podrivanje",
+      "priority": "srednji",
+      "priorityLabel": "🟡 Srednji",
+      "priorityValue": 2,
+      "status": "open",
+      "fromFs": false,
+      "channelId": "1442984129699254292",
+      "messageId": "1450168380538486844",
+      "createdBy": "994960078128029698",
+      "createdAt": "2025-12-15T16:51:20.518Z"
+    },
+    {
+      "field": "16",
+      "jobKey": "malciranje",
+      "jobName": "Malčiranje",
+      "priority": "nizak",
+      "priorityLabel": "🟢 Nizak",
+      "priorityValue": 1,
+      "status": "open",
+      "fromFs": false,
+      "channelId": "1442984129699254292",
+      "messageId": "1450168425388441721",
+      "createdBy": "994960078128029698",
+      "createdAt": "2025-12-15T16:51:31.346Z"
+    }
+  ],
   "farmingFields": [
     "1-2-3-4-5",
     "16",
@@ -59,14 +116,16 @@
     "36",
     "37",
     "6-7-8-11",
-    "30-31", 
+    "30-31",
     "24-23",
-    "59-60-38"
+    "59-60-38",
+    "48",
+    "26"
   ],
   "sowingSeasons": [
     {
       "season": 1,
-      "messageId": "1448064702864293940",
+      "messageId": "1450168052644712532",
       "completed": false,
       "fields": {},
       "createdAt": 1765311136383
