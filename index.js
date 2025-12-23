@@ -552,7 +552,7 @@ app.get('/dashboard', async (req, res) => {
   });
 });
 
-// --------------- GREETINGS (WELCOME) ---------------
+// --------------- GREETINGS (WELCOME) mesage ---------------
 app.post('/dashboard/greetings', (req, res) => {
   const { welcomeChannelId, welcomeMessage } = req.body;
 
