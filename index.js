@@ -90,20 +90,7 @@ const DEFAULT_TICKET_SYSTEM = {
 };
 
 // 🔹 default polja za Farming zadatke (prebacujemo iz koda u db.json)
-const DEFAULT_FARMING_FIELDS = [
-  '5',
-  '16',
-  '17',
-  '33',
-  '34',
-  '35',
-  '36',
-  '37',
-  '6-7-8-11',
-  '30-31',
-  '2-3',
-  '24-23',
-];
+const DEFAULT_FARMING_FIELDS = [];
 
 // default sezonski podaci za sjetvu
 const DEFAULT_SOWING_SEASONS = [];
