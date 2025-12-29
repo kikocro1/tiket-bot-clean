@@ -1968,7 +1968,7 @@ if (interaction.commandName === 'update-field') {
           .setStyle(ButtonStyle.Primary),
         new ButtonBuilder()
           .setCustomId('task_job_tanjiranje')
-          .setLabel('Tanjiranje')
+          .setLabel('Kultiviranje')
           .setStyle(ButtonStyle.Primary),
         new ButtonBuilder()
           .setCustomId('task_job_podrivanje')
@@ -2038,6 +2038,10 @@ if (interaction.commandName === 'update-field') {
         new ButtonBuilder()
           .setCustomId('task_job_rolanje')
           .setLabel('Rolanje polja')
+          .setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
+          .setCustomId('task_job_silaza')
+          .setLabel('Silaža')
           .setStyle(ButtonStyle.Primary)
       );
 
@@ -2070,7 +2074,7 @@ const jobNames = {
   oranje: 'Oranje',
   lajn: 'Bacanje lajma',
   djubrenje: 'Đubrenje',
-  tanjiranje: 'Tanjiranje',
+  tanjiranje: 'Kultiviranje',
   podrivanje: 'Podrivanje',
   herbicid: 'Prskanje herbicidom',
   kosnja_trave: 'Košnja trave',
@@ -2084,6 +2088,7 @@ const jobNames = {
   zimska: 'Zimska brazda',
   ceste: 'Čišćenje ceste',
   rolanje: 'Rolanje polja',
+  silaza: 'Silaža',
 };
 
 current.jobKey = jobKey;
