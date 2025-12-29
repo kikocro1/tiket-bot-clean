@@ -1514,27 +1514,33 @@ client.on('interactionCreate', async (interaction) => {
     }
 
     // /task-panel – Farming zadaci
-    if (interaction.commandName === 'task-panel') {
-      const embed = new EmbedBuilder()
-        .setColor('#ffd900')
-        .setTitle('🚜 Farming Simulator 25 – Kreiraj zadatak')
-        .setDescription(
-          'Klikni na gumb ispod kako bi započeo kreiranje novog zadatka.'
-        );
+if (interaction.commandName === 'task-panel') {
+  const embed = new EmbedBuilder()
+    .setColor('#ffd900')
+    .setTitle('🚜 Farming – Zadaci')
+    .setDescription('Odaberi što želiš kreirati.');
 
-      const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId('task_start')
-          .setLabel('➕ Kreiraj posao')
-          .setStyle(ButtonStyle.Success)
-      );
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('task_start')
+      .setLabel('➕ Kreiraj posao (polja)')
+      .setStyle(ButtonStyle.Success),
 
-      await interaction.deferReply({ ephemeral: true });
-      await interaction.deleteReply();
+    new ButtonBuilder()
+      .setCustomId('task_general_start')
+      .setLabel('📝 Kreiraj zadatak')
+      .setStyle(ButtonStyle.Primary)
+  );
 
-      const channel = interaction.channel;
-      await channel.send({ embeds: [embed], components: [row] });
-    }
+  await interaction.deferReply({ ephemeral: true });
+  await interaction.deleteReply();
+
+  await interaction.channel.send({
+    embeds: [embed],
+    components: [row],
+  });
+}
+
 
     // /add-field value:<string>
     if (interaction.commandName === 'add-field') {
@@ -1901,42 +1907,71 @@ if (interaction.commandName === 'update-field') {
       return;
     }
 
-    // === FARMING: START KREIRANJA POSLA ===
-    if (interaction.customId === 'task_start') {
-      activeTasks.set(interaction.user.id, { field: null });
+    // === FARMING: START KREIRANJA POSLA === 
+if (interaction.customId === 'task_start') {
+  activeTasks.set(interaction.user.id, { field: null });
 
-      const FIELDS = getFarmingFields();
-      const perRow = 5;
-      const rows = [];
+  const FIELDS = getFarmingFields();
+  const perRow = 5;
+  const rows = [];
 
-      for (let i = 0; i < FIELDS.length; i += perRow) {
-        const row = new ActionRowBuilder();
-        const slice = FIELDS.slice(i, i + perRow);
+  for (let i = 0; i < FIELDS.length; i += perRow) {
+    const row = new ActionRowBuilder();
+    const slice = FIELDS.slice(i, i + perRow);
 
-        for (const field of slice) {
-          row.addComponents(
-            new ButtonBuilder()
-              .setCustomId(`task_field_${field}`)
-              .setLabel(`Polje ${field}`)
-              .setStyle(ButtonStyle.Secondary)
-          );
-        }
-
-        rows.push(row);
-      }
-
-      const embed = new EmbedBuilder()
-        .setColor('#ffd900')
-        .setTitle('🚜 Kreiranje zadatka – Korak 1')
-        .setDescription('Odaberi polje za koje želiš kreirati posao.');
-
-      await interaction.reply({
-        embeds: [embed],
-        components: rows,
-        ephemeral: true,
-      });
-      return;
+    for (const field of slice) {
+      row.addComponents(
+        new ButtonBuilder()
+          .setCustomId(`task_field_${field}`)
+          .setLabel(`Polje ${field}`)
+          .setStyle(ButtonStyle.Secondary)
+      );
     }
+
+    rows.push(row);
+  }
+
+  const embed = new EmbedBuilder()
+    .setColor('#ffd900')
+    .setTitle('🚜 Kreiranje zadatka – Korak 1')
+    .setDescription('Odaberi polje za koje želiš kreirati posao.');
+
+  await interaction.reply({
+    embeds: [embed],
+    components: rows,
+    ephemeral: true,
+  });
+  return;
+}
+
+
+// === OPĆI ZADATAK: START (BEZ POLJA) ===
+if (interaction.customId === 'task_general_start') {
+  const modal = new ModalBuilder()
+    .setCustomId('task_general_modal')
+    .setTitle('📝 Novi zadatak');
+
+  const titleInput = new TextInputBuilder()
+    .setCustomId('task_title')
+    .setLabel('Naziv zadatka')
+    .setStyle(TextInputStyle.Short)
+    .setRequired(true);
+
+  const descInput = new TextInputBuilder()
+    .setCustomId('task_description')
+    .setLabel('Opis (opcionalno)')
+    .setStyle(TextInputStyle.Paragraph)
+    .setRequired(false);
+
+  modal.addComponents(
+    new ActionRowBuilder().addComponents(titleInput),
+    new ActionRowBuilder().addComponents(descInput)
+  );
+
+  await interaction.showModal(modal);
+  return;
+}
+
 
     // === FARMING: ODABIR POLJA ===
     if (interaction.customId.startsWith('task_field_')) {
@@ -2134,12 +2169,12 @@ return interaction.update({
 
     }
 
-    // ==============================
+// ==============================
 // 3️⃣ PRIORITET → KREIRANJE POSLA
 // ==============================
 if (interaction.customId.startsWith('task_priority_')) {
   const current = activeTasks.get(interaction.user.id);
-  if (!current || !current.field || !current.jobName) {
+  if (!current) {
     return interaction.reply({
       content: '⚠️ Nema aktivnog zadatka.',
       ephemeral: true,
@@ -2156,6 +2191,67 @@ if (interaction.customId.startsWith('task_priority_')) {
   const key = interaction.customId.replace('task_priority_', '');
   const prio = priorities[key];
   if (!prio) return;
+
+  // ==============================
+  // 📝 OPĆI ZADATAK (BEZ POLJA)
+  // ==============================
+  if (current.type === 'general') {
+    const embed = new EmbedBuilder()
+      .setColor(prio.color)
+      .setTitle(`${prio.label} — Zadatak`)
+      .addFields(
+        { name: 'Zadatak', value: current.title, inline: false },
+        ...(current.description
+          ? [{ name: 'Opis', value: current.description, inline: false }]
+          : []),
+        { name: 'Izradio', value: `<@${interaction.user.id}>`, inline: true },
+      )
+      .setTimestamp();
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('task_done')
+        .setLabel('✅ Završi zadatak')
+        .setStyle(ButtonStyle.Success)
+    );
+
+    const jobChannel = await interaction.guild.channels.fetch(FS_JOB_CHANNEL_ID);
+    const sentMsg = await jobChannel.send({
+      embeds: [embed],
+      components: [row],
+    });
+
+    saveFarmingTask({
+      type: 'general',
+      title: current.title,
+      description: current.description,
+      priority: key,
+      priorityLabel: prio.label,
+      priorityValue: prio.value,
+      status: 'open',
+      channelId: jobChannel.id,
+      messageId: sentMsg.id,
+      createdBy: interaction.user.id,
+      createdAt: new Date().toISOString(),
+    });
+
+    activeTasks.delete(interaction.user.id);
+
+    return interaction.reply({
+      content: '✅ Opći zadatak je kreiran.',
+      ephemeral: true,
+    });
+  }
+
+  // ==============================
+  // 🚜 FARMING POSAO (POLJA)
+  // ==============================
+  if (!current.field || !current.jobName) {
+    return interaction.reply({
+      content: '⚠️ Nema aktivnog farming zadatka.',
+      ephemeral: true,
+    });
+  }
 
   const embed = new EmbedBuilder()
     .setColor(prio.color)
@@ -2198,10 +2294,11 @@ if (interaction.customId.startsWith('task_priority_')) {
   activeTasks.delete(interaction.user.id);
 
   return interaction.reply({
-    content: '✅ Zadatak je uspješno kreiran.',
+    content: '✅ Farming zadatak je uspješno kreiran.',
     ephemeral: true,
   });
 }
+
 
 
     // === FARMING: Sijanje – otvaranje modala ===
@@ -2444,6 +2541,55 @@ if (!task.cropName) {
         ephemeral: true,
       });
     }
+
+    // 📝 OPĆI ZADATAK – MODAL SUBMIT → PRIORITET
+if (interaction.customId === 'task_general_modal') {
+  const title = interaction.fields.getTextInputValue('task_title');
+  const description =
+    interaction.fields.getTextInputValue('task_description') || '';
+
+  activeTasks.set(interaction.user.id, {
+    type: 'general',
+    title,
+    description,
+  });
+
+  const embed = new EmbedBuilder()
+    .setColor('#5865f2')
+    .setTitle('🚦 Odaberi prioritet')
+    .setDescription(
+      `📝 **Zadatak:** ${title}\n` +
+      (description ? `📄 ${description}\n\n` : '\n') +
+      'Odaberi prioritet:'
+    );
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('task_priority_hitno')
+      .setLabel('🔴 HITNO')
+      .setStyle(ButtonStyle.Danger),
+    new ButtonBuilder()
+      .setCustomId('task_priority_visok')
+      .setLabel('🟠 Visok')
+      .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder()
+      .setCustomId('task_priority_srednji')
+      .setLabel('🟡 Srednji')
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId('task_priority_nizak')
+      .setLabel('🟢 Nizak')
+      .setStyle(ButtonStyle.Success)
+  );
+
+  await interaction.reply({
+    embeds: [embed],
+    components: [row],
+    ephemeral: true,
+  });
+  return;
+}
+
 
 
     // Sijanje
